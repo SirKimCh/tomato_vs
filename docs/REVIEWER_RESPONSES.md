@@ -189,6 +189,18 @@ of large effect sizes with n=5. Increase to ≥10 runs. Check normality/spherici
 - Fixed-trial mode keeps `NUM_TRIALS = 5` to match the submitted paper; used only when `--no_kfold` is passed
 - Sensitivity analysis (Phase 2) uses k-fold (15 folds) — consistent with Phase 1
 
+> **📌 Note for paper writer — "5 seeds" vs "15 folds":**
+> 
+> The paper reports **k-fold results (15 folds)**, NOT fixed-trial (5 seeds).
+> 
+> - Running `python tomato_vs/07_master_run.py` → k-fold 15 folds is the **default**.  
+> - Running `python tomato_vs/07_master_run.py --no_kfold` → 5 fixed trials (only for direct comparison with submitted paper).
+> 
+> **Do NOT change `NUM_TRIALS` from 5 to 10.** The k-fold mode (15 folds) already exceeds the reviewer's ≥10 requirement.  Changing the fixed-trial count to 10 is unnecessary because fixed-trial is not the primary evaluation.
+> 
+> **Correct paper text:**  
+> *"Following the reviewer's recommendation, we replaced the 5 independent runs with RepeatedStratifiedKFold (k=5, n_repeats=3), yielding 15 independent evaluations—exceeding the suggested ≥10 runs (R3.6)—while simultaneously addressing the cross-validation concern for small training sets (R3.1). All results are reported as mean ± std across 15 folds."*
+
 **Normality test (Shapiro-Wilk):**
 - `03_3_analyze_results.py` now runs `scipy.stats.shapiro` per method × metric
 - Results saved to `normality_tests.csv`
