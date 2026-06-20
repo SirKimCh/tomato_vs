@@ -346,6 +346,8 @@ COLOR_MAP = {
     'mixup':           '#f39c12',
     'cutmix':          '#9b59b6',
     'randaugment':     '#1abc9c',
+    'autoaugment':     '#e91e63',
+    'augmix':          '#ff5722',
     'sd_labelonly_x5': '#e67e22',
 }
 LABEL_MAP = {
@@ -355,6 +357,8 @@ LABEL_MAP = {
     'mixup':           'MixUp',
     'cutmix':          'CutMix',
     'randaugment':     'RandAugment',
+    'autoaugment':     'AutoAugment',
+    'augmix':          'AugMix',
     'sd_labelonly_x5': 'SD×5 (Label)',
 }
 

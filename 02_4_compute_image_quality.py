@@ -2,11 +2,17 @@
 02_4_compute_image_quality.py
 Compute image quality metrics for SD-generated images vs baseline originals:
   - FID  (Fréchet Inception Distance)
+  - IS   (Inception Score — quality + diversity; ⚠ less reliable for domain-specific images)
   - LPIPS (Learned Perceptual Image Patch Similarity)
   - Label Noise Proxy  (feature-space nearest-neighbour classification)
 
 These metrics are computed for EACH Strength / Guidance combination and saved
 to the run directory for inclusion in the paper.
+
+⚠️ IS caveat: InceptionScore uses Inception v3 (ImageNet-trained).  For domain-
+specific plant-disease images, Inception may assign all images to a narrow set
+of "plant" categories, making IS less discriminative than FID/LPIPS.  IS is
+reported as supplementary; FID and LPIPS are the primary quality metrics.
 
 Optional packages:
   pip install torchmetrics[image] lpips
@@ -35,7 +41,7 @@ project_root = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(project_root))
 
 # ---------- optional imports ------------------------------------------------
-HAS_FID, HAS_LPIPS = False, False
+HAS_FID, HAS_LPIPS, HAS_IS = False, False, False
 
 try:
     from torchmetrics.image.fid import FrechetInceptionDistance
@@ -43,6 +49,14 @@ try:
     print("[OK] torchmetrics available – FID will be computed.")
 except ImportError:
     print("[WARN] torchmetrics not installed → FID skipped.")
+    print("       Install: pip install torchmetrics[image]")
+
+try:
+    from torchmetrics.image.inception import InceptionScore
+    HAS_IS = True
+    print("[OK] InceptionScore available – IS will be computed.")
+except ImportError:
+    print("[WARN] InceptionScore not available → IS skipped.")
     print("       Install: pip install torchmetrics[image]")
 
 try:
@@ -154,16 +168,17 @@ for cls in classes:
         if Path(gf).stem.split('_sd')[0] in stem_map
     ]
 
+# ---------- Flat path lists used by FID, IS, and LPIPS ----------------------
+all_real = [f for cls in classes for f in real_by_cls[cls]]
+all_gen  = [f for cls in classes for f in gen_by_cls[cls]]
+BS = 8   # batch size for metric update loops
+
 # ---------- FID (global, all classes) ----------------------------------------
 fid_value = -1.0
 if HAS_FID:
     print("\n[FID] Computing …")
     try:
         fid_metric = FrechetInceptionDistance(normalize=True).to(device)
-        all_real = [f for cls in classes for f in real_by_cls[cls]]
-        all_gen  = [f for cls in classes for f in gen_by_cls[cls]]
-
-        BS = 8
         for i in range(0, len(all_real), BS):
             b = load_batch(all_real[i:i+BS], tf_fid)
             if b is not None:
@@ -182,6 +197,34 @@ if HAS_FID:
         fid_value = -1.0
 else:
     print("\n[FID] Skipped.")
+
+# ---------- IS (Inception Score) — all generated images ----------------------
+# IS measures quality (sharpness) and diversity of generated images.
+# ⚠️ Limitation: IS uses Inception v3 trained on ImageNet. For domain-specific
+# plant-disease images, Inception may map all images to similar "plant" categories,
+# making IS less informative than FID/LPIPS for this task. Report with caution.
+is_mean, is_std = -1.0, -1.0
+if HAS_IS:
+    print("\n[IS] Computing Inception Score (all generated images) …")
+    try:
+        is_metric = InceptionScore(normalize=True).to(device)
+        if len(all_gen) < 10:
+            print(f"  [WARN] Only {len(all_gen)} generated images; IS unreliable (recommend ≥ 50).")
+        for i in range(0, len(all_gen), BS):
+            b = load_batch(all_gen[i:i+BS], tf_fid)
+            if b is not None:
+                is_metric.update(b.to(device))
+        is_mean_t, is_std_t = is_metric.compute()
+        is_mean, is_std = float(is_mean_t), float(is_std_t)
+        del is_metric
+        torch.cuda.empty_cache(); gc.collect()
+        print(f"  IS = {is_mean:.4f} ± {is_std:.4f}")
+        print(f"  (Note: IS on plant-disease images may be low/unreliable; FID/LPIPS preferred)")
+    except Exception as e:
+        print(f"  IS failed: {e}")
+        is_mean, is_std = -1.0, -1.0
+else:
+    print("\n[IS] Skipped.")
 
 # ---------- LPIPS initialisation --------------------------------------------
 lpips_fn = None
@@ -252,6 +295,8 @@ summary = {
     'Strength':                  args.strength,
     'Guidance':                  args.guidance,
     'FID':                       fid_value,
+    'IS_mean':                   is_mean,
+    'IS_std':                    is_std,
     'Mean_LPIPS':                float(np.mean(valid_lpips))  if valid_lpips else -1.0,
     'Std_LPIPS':                 float(np.std(valid_lpips))   if valid_lpips else -1.0,
     'Mean_Label_Noise_Rate':     float(np.mean(valid_noise))  if valid_noise else -1.0,
@@ -264,6 +309,7 @@ pd.DataFrame([summary]).to_csv(run_dir / f'image_quality_summary_{tag}.csv', ind
 print(f"\n{'='*60}")
 print("SUMMARY")
 print(f"  FID                  : {fid_value:.4f}")
+print(f"  IS                   : {is_mean:.4f} ± {is_std:.4f}  (⚠ interpret cautiously for plant images)")
 print(f"  Mean LPIPS (gen→src) : {summary['Mean_LPIPS']:.4f} ± {summary['Std_LPIPS']:.4f}")
 print(f"  Label Noise Rate     : {summary['Mean_Label_Noise_Rate']:.3f}")
 print(f"{'='*60}")

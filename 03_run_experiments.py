@@ -11,6 +11,8 @@ Extended experiments (--extra_baselines):
   mixup        — MixUp  applied ONLINE to baseline data during training
   cutmix       — CutMix applied ONLINE to baseline data during training
   randaugment  — RandAugment pre-generated 5× dataset (or online if missing)
+  autoaugment  — AutoAugment (IMAGENET policy) applied ONLINE  [R3.7 extra]
+  augmix       — AugMix applied ONLINE to baseline data        [R3.7 extra]
 
 Ablation (--ablation_prompt):
   sd_labelonly_x5 — SD with label-only prompts vs Gemini LLM prompts
@@ -24,6 +26,11 @@ Cross-validation modes:
 
 Quantity ablation (--aug_limit):
   Limit augmented images per original  (1→2×, 2→3×, 3→4×, 4→5×)
+
+GPU optimisation:
+  AMP (Mixed Precision) is enabled by default for faster training on Tensor Core
+  GPUs (RTX 3050+, A100, etc.).  USE_AMP=False disables it.
+  NUM_WORKERS is set to 0 on Windows (spawn issues) and min(4, CPU_count) on Linux.
 """
 
 import sys
@@ -35,6 +42,8 @@ if not torch.cuda.is_available():
 import argparse
 import random
 import re
+import os
+import platform
 import numpy as np
 import gc
 import pandas as pd
@@ -103,6 +112,14 @@ LEARNING_RATE = 1e-4   # standard fine-tuning lr for pre-trained EfficientNet-B0
 WEIGHT_DECAY  = 1e-4
 NUM_TRIALS    = 5      # fixed-trial mode seeds (matches submitted paper; k-fold gives 15 folds for R3.1)
 
+# ── GPU / performance constants ───────────────────────────────────────────────
+NUM_WORKERS = 0 if platform.system() == 'Windows' else min(4, os.cpu_count() or 4)
+             # Windows: 0 (spawn-based multiprocessing causes issues inside functions)
+             # Linux / Mac: parallel data loading for better GPU feed rate
+USE_AMP     = True   # Mixed-precision training (fp16 forward, fp32 grad update)
+             # Faster on Tensor Core GPUs (RTX 3050+); negligible precision impact
+             # for classification tasks.  Set False to disable.
+
 device       = torch.device('cuda')
 base_dir     = Path(__file__).parent.resolve()
 datasets_dir = base_dir / 'datasets'
@@ -131,6 +148,30 @@ tf_randaug = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
 ])
+
+# AutoAugment (ImageNet policy) — R3.7 extra baseline
+try:
+    tf_autoaug = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.AutoAugment(policy=transforms.AutoAugmentPolicy.IMAGENET),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+    ])
+except Exception:
+    tf_autoaug = tf_randaug   # fallback: AutoAugment not in this torchvision version
+
+# AugMix — R3.7 extra baseline (torchvision >= 0.13)
+try:
+    tf_augmix = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.AugMix(),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+    ])
+except Exception:
+    tf_augmix = tf_randaug    # fallback: AugMix not in this torchvision version (< 0.13)
 
 tf_test = transforms.Compose([
     transforms.Resize((224, 224)),
@@ -298,12 +339,15 @@ def _train_eval(train_ds, val_ds, test_ds,
         p.requires_grad = True
     model = model.to(device)
 
-    tr_loader  = DataLoader(train_ds, batch_size=BATCH_SIZE,
-                            shuffle=True,  num_workers=0, pin_memory=True, drop_last=False)
-    val_loader = DataLoader(val_ds,   batch_size=BATCH_SIZE,
-                            shuffle=False, num_workers=0, pin_memory=True)
-    te_loader  = DataLoader(test_ds,  batch_size=BATCH_SIZE,
-                            shuffle=False, num_workers=0, pin_memory=True)
+    tr_loader  = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True,
+                            num_workers=NUM_WORKERS, pin_memory=True, drop_last=False,
+                            persistent_workers=(NUM_WORKERS > 0))
+    val_loader = DataLoader(val_ds,   batch_size=BATCH_SIZE, shuffle=False,
+                            num_workers=NUM_WORKERS, pin_memory=True,
+                            persistent_workers=(NUM_WORKERS > 0))
+    te_loader  = DataLoader(test_ds,  batch_size=BATCH_SIZE, shuffle=False,
+                            num_workers=NUM_WORKERS, pin_memory=True,
+                            persistent_workers=(NUM_WORKERS > 0))
 
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.AdamW(
@@ -317,6 +361,9 @@ def _train_eval(train_ds, val_ds, test_ds,
     tr_losses, vl_losses, tr_accs, vl_accs = [], [], [], []
     best_vl, patience, best_state = float('inf'), 0, None
 
+    # AMP GradScaler — scales loss to prevent fp16 underflow; no-op when USE_AMP=False
+    scaler = torch.cuda.amp.GradScaler(enabled=USE_AMP)
+
     pbar = tqdm(range(EPOCHS), desc=f"{exp_name} T{trial_id}", leave=False)
     for epoch in pbar:
         model.train()
@@ -326,24 +373,27 @@ def _train_eval(train_ds, val_ds, test_ds,
             X, y = X.to(device), y.to(device)
             optimizer.zero_grad()
 
-            if aug_mode == 'mixup':
-                Xm, ya, yb, lam = mixup_data(X, y)
-                out  = model(Xm)
-                loss = mixed_loss(criterion, out, ya, yb, lam)
-                pred = out.argmax(1)
-            elif aug_mode == 'cutmix':
-                Xc, ya, yb, lam = cutmix_data(X, y)
-                out  = model(Xc)
-                loss = mixed_loss(criterion, out, ya, yb, lam)
-                pred = out.argmax(1)
-            else:
-                out  = model(X)
-                loss = criterion(out, y)
-                pred = out.argmax(1)
+            with torch.cuda.amp.autocast(enabled=USE_AMP):
+                if aug_mode == 'mixup':
+                    Xm, ya, yb, lam = mixup_data(X, y)
+                    out  = model(Xm)
+                    loss = mixed_loss(criterion, out, ya, yb, lam)
+                    pred = out.argmax(1)
+                elif aug_mode == 'cutmix':
+                    Xc, ya, yb, lam = cutmix_data(X, y)
+                    out  = model(Xc)
+                    loss = mixed_loss(criterion, out, ya, yb, lam)
+                    pred = out.argmax(1)
+                else:
+                    out  = model(X)
+                    loss = criterion(out, y)
+                    pred = out.argmax(1)
 
-            loss.backward()
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
             run_loss += loss.item()
             correct  += (pred == y).sum().item()
             total    += y.size(0)
@@ -357,8 +407,9 @@ def _train_eval(train_ds, val_ds, test_ds,
         with torch.no_grad():
             for X, y in val_loader:
                 X, y = X.to(device), y.to(device)
-                out   = model(X)
-                vl_run += criterion(out, y).item()
+                with torch.cuda.amp.autocast(enabled=USE_AMP):
+                    out = model(X)
+                vl_run += criterion(out.float(), y).item()
                 vl_cor += (out.argmax(1) == y).sum().item()
                 vl_tot += y.size(0)
 
@@ -406,8 +457,9 @@ def _train_eval(train_ds, val_ds, test_ds,
     with torch.no_grad():
         for X, y in te_loader:
             X, y = X.to(device), y.to(device)
-            out  = model(X)
-            probs_all.extend(torch.softmax(out, 1).cpu().numpy())
+            with torch.cuda.amp.autocast(enabled=USE_AMP):
+                out = model(X)
+            probs_all.extend(torch.softmax(out.float(), 1).cpu().numpy())
             preds_all.extend(out.argmax(1).cpu().numpy())
             labels_all.extend(y.cpu().numpy())
 
@@ -486,7 +538,10 @@ def run_experiment(dataset_dir, exp_name, seed, trial, aug_mode=None):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark     = False
 
-    tr    = tf_randaug if aug_mode == 'randaugment' else tf_train
+    tr    = (tf_randaug  if aug_mode == 'randaugment' else
+             tf_autoaug  if aug_mode == 'autoaugment' else
+             tf_augmix   if aug_mode == 'augmix'      else
+             tf_train)
     full  = datasets.ImageFolder(str(dataset_dir), transform=tr)
     test  = datasets.ImageFolder(str(test_dir),    transform=tf_test)
 
@@ -503,7 +558,10 @@ def run_experiment(dataset_dir, exp_name, seed, trial, aug_mode=None):
 def run_fold_experiment(train_samples, val_samples, class_names,
                         exp_name, fold_idx, aug_mode=None):
     """K-fold variant using explicit (path, label) sample lists."""
-    tr = tf_randaug if aug_mode == 'randaugment' else tf_train
+    tr = (tf_randaug  if aug_mode == 'randaugment' else
+          tf_autoaug  if aug_mode == 'autoaugment' else
+          tf_augmix   if aug_mode == 'augmix'      else
+          tf_train)
     tr_ds = FoldDataset(train_samples, tr)
     vl_ds = FoldDataset(val_samples,   tf_test)
     te_ds = datasets.ImageFolder(str(test_dir), transform=tf_test)
@@ -515,7 +573,7 @@ def run_fold_experiment(train_samples, val_samples, class_names,
 if __name__ == '__main__':
 
     core_exps = ['baseline', 'tda_x5', 'sd_x5']
-    ext_exps  = ['mixup', 'cutmix', 'randaugment'] if args.extra_baselines else []
+    ext_exps  = ['mixup', 'cutmix', 'randaugment', 'autoaugment', 'augmix'] if args.extra_baselines else []
     abl_exps  = []
     if args.ablation_prompt:
         sdlo = datasets_dir / 'sd_labelonly_x5' / 'train'
@@ -526,7 +584,8 @@ if __name__ == '__main__':
 
     experiments = core_exps + ext_exps + abl_exps
 
-    AUG_MODE = {'mixup': 'mixup', 'cutmix': 'cutmix', 'randaugment': 'randaugment'}
+    AUG_MODE = {'mixup': 'mixup', 'cutmix': 'cutmix', 'randaugment': 'randaugment',
+                'autoaugment': 'autoaugment', 'augmix': 'augmix'}
 
     RA_DIR = datasets_dir / 'randaugment_x5' / 'train'
     EXP_DIR = {
@@ -538,6 +597,8 @@ if __name__ == '__main__':
         'cutmix':          datasets_dir / 'baseline'         / 'train',
         'randaugment':     RA_DIR if RA_DIR.exists()
                            else datasets_dir / 'baseline'    / 'train',
+        'autoaugment':     datasets_dir / 'baseline'         / 'train',  # online transform
+        'augmix':          datasets_dir / 'baseline'         / 'train',  # online transform
     }
 
     print(f"\nExperiments   : {experiments}")
@@ -610,7 +671,8 @@ if __name__ == '__main__':
                     print(f"  Skipping {exp} – directory not found")
                     continue
 
-                if exp in ('mixup', 'cutmix'):
+                if exp in ('mixup', 'cutmix', 'autoaugment', 'augmix'):
+                    # Online transforms: use the fold's baseline images directly
                     tr_samples = [(bl_paths[i], bl_labels[i]) for i in tr_idx]
                 else:
                     tr_samples = get_fold_aug_samples(

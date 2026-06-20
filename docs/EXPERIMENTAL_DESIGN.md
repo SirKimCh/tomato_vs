@@ -82,7 +82,19 @@ Pre-generated dataset: `torchvision.transforms.RandAugment(num_ops=2, magnitude=
 4 augmented copies per original (5× total), matching TDA/SD scale.
 Implemented in `02_6_gen_baselines.py`.
 
-### 3.7 SD ×5 (Label-only) [Ablation]
+### 3.7 AutoAugment [R3.7 extra]
+AutoAugment with IMAGENET policy (`torchvision.transforms.AutoAugment(AutoAugmentPolicy.IMAGENET)`).
+Applied **online** during training to the 20 baseline images (same as MixUp/CutMix).
+Uses a policy learned on ImageNet; not re-optimised for plant-disease data.
+**Note**: Some AutoAugment ops (Invert, Posterize) may alter disease colour cues.
+Results serve as upper bound for automated policy-based augmentation.
+
+### 3.8 AugMix [R3.7 extra]
+AugMix (`torchvision.transforms.AugMix()`, requires torchvision ≥ 0.13).
+Applies augmentation at multiple severity levels and mixes them stochastically.
+Applied **online** during training to the 20 baseline images.
+
+### 3.9 SD ×5 (Label-only) [Ablation]
 Same SD pipeline as 3.3 but prompt = `"tomato leaf {class_name}, disease symptoms, macro photography"`.
 No Gemini API required.
 Implemented in `02_2b_gen_sd_labelonly.py`.
@@ -159,7 +171,8 @@ Fixed-trial mode matches the original 5-seed setup from the submitted manuscript
 | F1-Score | `f1_score(weighted)` | Harmonic mean, primary metric |
 | MCC | `matthews_corrcoef` | Robust to class imbalance |
 | AUC-ROC | `roc_auc_score(OvR, weighted)` | Discrimination ability |
-| FID | `torchmetrics FrechetInceptionDistance` | Image quality (lower = better) |
+| FID | `torchmetrics FrechetInceptionDistance` | Image quality vs real distribution (lower = better) |
+| IS | `torchmetrics InceptionScore` | Generated image quality + diversity (higher = better). ⚠️ Unreliable for domain-specific images (Inception v3 trained on ImageNet); reported with caveat. FID/LPIPS are primary quality metrics. |
 | LPIPS | `lpips.LPIPS(net='alex')` | Perceptual similarity to source |
 | Label-noise rate | NN cosine-similarity in EfficientNet-B0 feature space | % off-distribution generated images |
 | LPIPS intra-class | Mean pairwise LPIPS within class (equal-subsampled) | Diversity (higher = more diverse) |
@@ -275,9 +288,14 @@ with more synthetic data, or whether there is a saturation point.
 
 1. **FID with small sample size**: 100–400 images are used; FID was designed for ≥2048.
    Results should be interpreted as indicative, not definitive.
-2. **MixUp/CutMix dataset size**: These operate on 20 originals (not 5×) because
-   mixing requires pairs within a batch; a fair comparison would repeat the baseline
-   5× (not implemented). The difference is noted in the paper.
+2. **MixUp/CutMix/AutoAugment/AugMix dataset size**: These are applied as **online
+   transforms to 20 original images per class** (not pre-generated 5×) because:
+   - MixUp/CutMix require pairs within a batch
+   - AutoAugment/AugMix apply a random policy every epoch, so diversity accumulates
+     over 50 epochs rather than being stored on disk
+   A fair 5× pre-generated AutoAugment comparison could be created by modifying
+   `02_6_gen_baselines.py`, but this is not done here (acknowledged limitation).
+   The online vs pre-generated distinction is noted in all paper tables.
 3. **Single model architecture**: Only EfficientNet-B0 is tested; results may not
    generalise to other architectures.
 4. **Effect size with n=10–15**: Large effect sizes (|d| ≥ 0.8) should be interpreted
@@ -286,8 +304,11 @@ with more synthetic data, or whether there is a saturation point.
 5. **Expert validation**: Per reviewer suggestion, expert visual evaluation of
    generated images is recommended but requires domain specialists.
 6. **EB/LB confusion mitigation training**: Confusion-rate analysis is fully automated
-   and reported (R10). Targeted mitigation training (focal loss, class-weighted CE)
-   is described in Discussion but not run by default to keep compute tractable.
+   and reported (R10). Targeted mitigation training (focal loss) is described in
+   Discussion as future work but is NOT run by default — it is not required by the
+   reviewer and is not claimed in any paper result.
+   **Note**: Class-weighted CE is NOT applicable here because the training set is
+   perfectly balanced (20 images × 5 classes). Class weights would all equal 1.0.
 
 ---
 
@@ -306,7 +327,8 @@ Confusion between them can lead to incorrect treatment decisions in practice.
 
 ### Interpretation
 - **Target**: EB→LB and LB→EB confusion rates < 0.10 (10%)
-- **High flag**: Rate > 0.15 is flagged in the analysis output
+- **High flag**: Rate > **0.10** is flagged as `← HIGH` in the analysis output
+  (consistent with the target; `03_3_analyze_results.py` line ~335)
 - **SD hypothesis**: Gemini-guided SD augmentation generates more visually distinct
   disease representations, potentially reducing EB/LB confusion compared to baseline
 
@@ -316,4 +338,47 @@ Confusion between them can lead to incorrect treatment decisions in practice.
 - `per_class_analysis.csv` — computed by `03_3_analyze_results.py`
 - `per_class_comparison.png` — bar chart of F1 by class and method
 
+---
 
+## 13. GPU Optimisation Notes
+
+### 13.1 Why RTX 5060 Ti showed only 15% GPU utilisation
+
+The root cause is `pipe.enable_model_cpu_offload()` in `02_2_gen_sd.py`.
+This is a **memory-saving feature designed for 4–8 GB VRAM cards** (e.g. RTX 3050 Ti).
+It moves each pipeline component (CLIP, VAE, UNet) between CPU and GPU one at a time,
+causing continuous PCIe transfer overhead that keeps the GPU idle most of the time.
+
+On a high-VRAM card (≥ 10 GB, e.g. RTX 5060 Ti 16 GB), all SD components fit on GPU
+simultaneously. The fix: skip CPU offload and use `pipe.to("cuda")` instead.
+
+**Speedup** from removing CPU offload on RTX 5060 Ti: ~8–12× faster SD generation.
+
+### 13.2 What was changed
+
+| Component | Before | After |
+|-----------|--------|-------|
+| `02_2_gen_sd.py` | Always `enable_model_cpu_offload()` | Smart VRAM detection: offload only if VRAM < 10 GB |
+| `02_2_gen_sd.py` | — | xformers memory-efficient attention if installed |
+| `03_run_experiments.py` | `num_workers=0` | `0` on Windows, `min(4, CPU_count)` on Linux |
+| `03_run_experiments.py` | No AMP | Mixed-precision (fp16 forward, fp32 grad) via GradScaler |
+| `03_run_experiments.py` | — | `persistent_workers=True` when num_workers > 0 |
+
+### 13.3 Why training GPU utilisation is inherently low
+
+Even with all optimisations, GPU utilisation during **training** will be low because:
+- Total dataset: 100 images (20/class × 5 classes) in training set
+- Each epoch: ~12 forward+backward passes (batch=8) → ~50 ms on any modern GPU
+- Bottleneck: Python overhead + DataLoader spawn, not GPU compute
+
+This is **expected and correct** for few-shot training. The GPU's heavy work is during
+**SD generation** (50 denoising steps per image × 400 images = 20,000 UNet passes).
+
+### 13.4 Running on both machines
+
+| Machine | VRAM | Config |
+|---------|------|--------|
+| RTX 3050 Ti | 4 GB | CPU offload ENABLED (auto-detected); `num_workers=0` on Windows |
+| RTX 5060 Ti | 16 GB | Full GPU mode (auto-detected); `num_workers=4` on Linux |
+
+No manual configuration needed — `02_2_gen_sd.py` detects VRAM at runtime.

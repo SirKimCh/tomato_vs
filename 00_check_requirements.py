@@ -4,8 +4,9 @@
 Environment verification & auto-installer for the Tomato Leaf Disease pipeline.
 
 Designed for:
-  • NVIDIA GeForce RTX/GTX 3050  6 GB VRAM
-  • CUDA 12.x  (tested with 12.1 / 12.2)
+  • NVIDIA GeForce RTX 3050  4 GB VRAM  (CPU-offload mode for SD)
+  • NVIDIA GeForce RTX 5060 Ti 16 GB VRAM  (full GPU mode; Blackwell – needs CUDA 12.8+)
+  • CUDA 12.x  (12.1+ for Ampere; 12.8 for Blackwell/RTX 5060 Ti)
   • Python 3.8 – 3.11
 
 Run THIS SCRIPT FIRST, before any experiment:
@@ -15,7 +16,7 @@ Run THIS SCRIPT FIRST, before any experiment:
 What it checks:
   ✔  Python version (≥3.8)
   ✔  NVIDIA GPU & CUDA availability
-  ✔  GPU VRAM (warn if <6 GB)
+  ✔  GPU VRAM (warn if <6 GB; note for RTX 5060 Ti = 16 GB)
   ✔  PyTorch version & CUDA backend
   ✔  All required Python packages
   ✔  .env file (Gemini API key)
@@ -97,11 +98,20 @@ try:
         print(f"{PASS} GPU  : {dev}")
         print(f"{PASS} VRAM : {vram_gb:.1f} GB")
         if vram_gb < 5.5:
-            print(f"{WARN} VRAM < 6 GB — Stable Diffusion may OOM during generation")
-            issues.append(f"Low VRAM ({vram_gb:.1f} GB) — SD may be slow/fail")
-        # Check CUDA version matches user's hardware (GTX 3050 → CUDA 12.x)
-        if cuda_ver and not cuda_ver.startswith('12'):
-            print(f"{WARN} CUDA {cuda_ver} detected. GTX 3050 works best with CUDA 12.x")
+            print(f"{WARN} VRAM < 6 GB — Stable Diffusion will use CPU offload (auto-detected)")
+        elif vram_gb >= 10:
+            print(f"{PASS} VRAM ≥ 10 GB — Full GPU mode for SD (no CPU offload; optimal)")
+        # RTX 5060 Ti (Blackwell GB206) needs CUDA 12.8+ and PyTorch >= 2.6
+        if 'RTX 5' in dev or 'RTX50' in dev or 'RTX 50' in dev:
+            print(f"{WARN} Blackwell GPU detected ({dev})")
+            print(f"      RTX 5060 Ti requires CUDA ≥ 12.8 and PyTorch ≥ 2.6")
+            if cuda_ver and tuple(int(x) for x in cuda_ver.split('.')[:2]) < (12, 8):
+                print(f"{FAIL} CUDA {cuda_ver} too old for RTX 5060 Ti — upgrade to CUDA 12.8+")
+                issues.append(f"CUDA {cuda_ver} too old for RTX 5060 Ti (need ≥ 12.8)")
+                print(f"      Install: pip install torch torchvision torchaudio "
+                      f"--index-url https://download.pytorch.org/whl/cu128")
+        elif cuda_ver and not cuda_ver.startswith('12'):
+            print(f"{WARN} CUDA {cuda_ver} detected. RTX 3050 works best with CUDA 12.x")
             print(f"      Recommended: pip install torch torchvision "
                   f"--index-url https://download.pytorch.org/whl/cu121")
             issues.append(f"PyTorch compiled with CUDA {cuda_ver} (recommend cu121)")
@@ -289,8 +299,11 @@ else:
         print("\nTip: run with --install to auto-install missing packages:")
         print("  python tomato_vs/00_check_requirements.py --install")
 
-print("\nNote on CUDA / PyTorch for GTX 3050 (6 GB, CUDA 12.x):")
-print("  pip install torch torchvision torchaudio "
+print("\nNote on CUDA / PyTorch per GPU:")
+print("  RTX 3050 (4 GB, Ampere):   pip install torch torchvision torchaudio "
       "--index-url https://download.pytorch.org/whl/cu121")
+print("  RTX 5060 Ti (16 GB, Blackwell): pip install torch torchvision torchaudio "
+      "--index-url https://download.pytorch.org/whl/cu128")
+print("  Blackwell requires CUDA 12.8+ and PyTorch >= 2.6")
 print()
 

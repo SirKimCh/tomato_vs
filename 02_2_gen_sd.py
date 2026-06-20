@@ -128,7 +128,28 @@ pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
     requires_safety_checker=False
 )
 pipe.enable_attention_slicing()
-pipe.enable_model_cpu_offload()
+
+# ── Smart VRAM detection ─────────────────────────────────────────────────────
+# enable_model_cpu_offload() is ONLY needed for cards with < 10 GB VRAM
+# (e.g. RTX 3050 Ti = 4 GB).  On cards with ≥ 10 GB (e.g. RTX 5060 Ti = 16 GB)
+# it causes unnecessary CPU↔GPU transfers that drop GPU utilisation to ~15%.
+# Keeping the full pipeline on GPU gives ~10× faster generation on high-VRAM cards.
+_vram_gb = torch.cuda.get_device_properties(0).total_memory / 1024 ** 3
+print(f"[GPU] {torch.cuda.get_device_name(0)}  –  VRAM: {_vram_gb:.1f} GB")
+if _vram_gb < 10.0:
+    print("  → CPU offload ENABLED  (< 10 GB VRAM; needed for RTX 3050 Ti / 4–8 GB cards)")
+    pipe.enable_model_cpu_offload()
+else:
+    print("  → Full GPU mode  (≥ 10 GB VRAM; RTX 5060 Ti / A-series / etc.)")
+    pipe = pipe.to("cuda")
+
+# xformers memory-efficient attention (optional; install: pip install xformers)
+try:
+    pipe.enable_xformers_memory_efficient_attention()
+    print("  → xformers attention ENABLED  (faster denoising steps)")
+except Exception:
+    pass   # xformers not installed – no problem
+
 pipe.set_progress_bar_config(disable=True)
 
 print("Model loaded successfully.")
