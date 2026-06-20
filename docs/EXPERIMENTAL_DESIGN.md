@@ -23,7 +23,7 @@ classification, and at what diffusion strength does label noise degrade results?
 | Source | PlantVillage (Kaggle) |
 | Classes | 5 tomato disease/health states |
 | Train per class | 20 (few-shot constraint) |
-| Test per class | 80 (fixed for all Phase-1 and Phase-2 runs) |
+| Test per class | 100 (fixed for all Phase-1 and Phase-2 runs, matches submitted paper) |
 | Split strategy | `random.seed(42)` stratified, no overlap between train and test |
 | Train–test exclusion | Asserted by set intersection check in `01_data_setup.py` |
 
@@ -61,7 +61,8 @@ Parameter source: `AugmentationConfig.GEOMETRIC_TRANSFORMS["rotation"]["ranges"]
 ### 3.3 SD ×5 (Stable Diffusion img2img)
 - Model: `runwayml/stable-diffusion-v1-5` (fp16, CPU offload for 6 GB VRAM)
 - Input: 512×512 resized original image
-- Prompt: generated via Gemini 2.0 Flash API (disease-specific expert description)
+- Prompt: generated via **Gemini 2.5 Flash** API (disease-specific expert description)
+  > **Note**: Gemini 2.0 Flash was deprecated in June 2026. `gemini-2.5-flash` is the current stable model used in `02_2_gen_sd.py`.
 - Negative prompt: suppresses cartoon, non-leaf content
 - Grid search: Strength ∈ {0.35, 0.50, 0.65}, Guidance ∈ {6.0, 7.5, 9.0}
 - Output: 4 generated images per original, stored as `*_sdN.jpg`
@@ -106,7 +107,7 @@ Implemented in `02_2b_gen_sd_labelonly.py`.
 | Hyperparameter | Value |
 |----------------|-------|
 | Optimizer | AdamW |
-| Learning rate | 1e-3 |
+| Learning rate | 1e-4 (AdamW, standard for partial fine-tuning on small datasets; Howard & Ruder 2018) |
 | Weight decay | 1e-4 |
 | LR scheduler | CosineAnnealingWarmRestarts (T_0=10, T_mult=2, η_min=1e-7) |
 | Batch size | 8 |
@@ -253,7 +254,7 @@ picture of the augmentation quantity–performance curve.
 ### 10.1 Prompt Type
 | Condition | Prompt Source | Expected Outcome |
 |-----------|--------------|-----------------|
-| `sd_x5` | Gemini 2.0 Flash expert description | More semantically accurate images |
+| `sd_x5` | **Gemini 2.5 Flash** expert description | More semantically accurate images |
 | `sd_labelonly_x5` | Template `"tomato leaf {class}"` | Less targeted images |
 
 ### 10.2 Augmentation Quantity

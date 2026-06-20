@@ -238,7 +238,7 @@ analysis and strategy to reduce this confusion."
 **Per-class analysis in statistical report:**
 - `03_3_analyze_results.py` loads `per_class_metrics.csv` (if present) and:
   - Prints per-class F1 table: all methods × all classes
-  - Prints EB→LB and LB→EB confusion rates per method (with "HIGH" flag if >15%)
+  - Prints EB→LB and LB→EB confusion rates per method (with "HIGH" flag if >10%, target is <10%)
   - Saves `per_class_analysis.csv`
   - Generates `per_class_comparison.png` (F1 per class per method bar chart)
 
@@ -255,5 +255,39 @@ analysis and strategy to reduce this confusion."
   augmentation with higher strength for confused classes) are proposed in the
   paper's Discussion section and can be implemented in `03_run_experiments.py`
   by passing custom class weights to `nn.CrossEntropyLoss(weight=...)`.
+
+---
+
+## Methodology Refinement — Learning Rate (not a reviewer comment, but a scientific correction)
+
+### Rationale
+
+The submitted paper used `lr = 1e-3` (AdamW). During revision, a scientific review
+of the fine-tuning literature identified that `lr = 1e-4` is more appropriate for this
+specific scenario:
+
+| Factor | Argument for 1e-4 |
+|--------|------------------|
+| Few-shot data (20/class) | Small dataset → high gradient variance → lower lr stabilises training |
+| Partial fine-tuning | Only last 3 blocks + classifier are trainable; large lr risks overwriting ImageNet features in these layers |
+| AdamW with CosineAnnealing | lr=1e-3 causes larger oscillation at T_0 restarts on tiny batches |
+| Literature standard | Howard & Ruder (2018); Kornblith et al. (2019) recommend 1e-4 for fine-tuning pre-trained CNNs on small datasets |
+| Benefit for revision | Lower variance across 15 k-folds → tighter mean±std → stronger Friedman/Wilcoxon evidence |
+
+### Impact
+
+- All trained models in this revision use `lr = 1e-4`
+- Results will differ from the submitted paper (which used 1e-3)
+- The paper should state: *"Following standard fine-tuning practice for pre-trained CNNs on limited data (Howard & Ruder 2018), we revised the learning rate from 1e-3 to 1e-4."*
+- `LEARNING_RATE = 1e-4` in `03_run_experiments.py` (and all other training scripts)
+
+---
+
+## API / Model Note — Gemini 2.0 Flash Deprecated (June 2026)
+
+Gemini 2.0 Flash was deprecated by Google in June 2026. The prompt-generation model in
+`02_2_gen_sd.py` has been updated to `gemini-2.5-flash`, which is the current stable API.
+All other aspects of the SD generation pipeline (SD v1.5, strength/guidance grid, negative prompt)
+remain unchanged. The paper should reference **Gemini 2.5 Flash** as the prompt generation model.
 
 

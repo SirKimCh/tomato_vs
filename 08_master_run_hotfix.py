@@ -21,10 +21,10 @@ Tình huống phục hồi (sau power loss trong cùng một lần chạy):
 
 Nếu mất điện lần nữa: chạy lại file này — sẽ tự detect và tiếp tục.
 
-Current settings (phải khớp với bài nộp):
+Current settings (đúng cho bài revision):
   test_count  : 100/class
-  lr          : 1e-3
-  Gemini model: gemini-2.0-flash
+  lr          : 1e-4  (standard for partial fine-tuning on few-shot data; Howard & Ruder 2018)
+  Gemini model: gemini-2.5-flash (2.0-flash deprecated June 2026)
   Fixed trials: 5 (matches submitted paper)
   K-Fold mode : 15 folds = 5×3 (PRIMARY for revision)
 

@@ -16,7 +16,7 @@ This study benchmarks **Stable Diffusion img2img** as a data augmentation techni
 |---|--------|----------|-----------|
 | 1 | **Baseline** | No augmentation | 20 orig/class |
 | 2 | **TDA ×5** | Flip + Rotate + ColorJitter (pre-generated) | 100/class |
-| 3 | **SD ×5 (LLM)** | Stable Diffusion img2img + Gemini 2.0 Flash prompts | 100/class |
+| 3 | **SD ×5 (LLM)** | Stable Diffusion img2img + Gemini 2.5 Flash prompts | 100/class |
 | 4 | **MixUp** | Online convex combination of image pairs | 20 orig/class |
 | 5 | **CutMix** | Online rectangular region swapping | 20 orig/class |
 | 6 | **RandAugment ×5** | Pre-generated RandAugment policy | 100/class |
@@ -135,7 +135,7 @@ tomato_vs/
 ## Experimental Protocol
 
 - **Model**: EfficientNet-B0 (ImageNet), last 3 blocks + classifier unfrozen
-- **Optimizer**: AdamW (lr=1e-3, wd=1e-4) + CosineAnnealingWarmRestarts
+- **Optimizer**: AdamW (lr=1e-4, wd=1e-4) + CosineAnnealingWarmRestarts
 - **CV**: RepeatedStratifiedKFold(k=5, n=3) → 15 folds [primary]  OR  5 fixed trials [matches submitted paper]
 - **Metrics**: Acc, Precision, Recall, F1 (weighted), MCC, AUC-ROC, FID, LPIPS
 - **Stats**: Friedman test (global) + Wilcoxon signed-rank + Cohen's d [R9]

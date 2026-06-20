@@ -96,7 +96,10 @@ if args.aug_limit != 4 and not args.use_kfold:
 BATCH_SIZE    = 8
 EPOCHS        = 50
 PATIENCE      = 10
-LEARNING_RATE = 1e-3   # original paper setting (AdamW, matches submitted manuscript)
+LEARNING_RATE = 1e-4   # standard fine-tuning lr for pre-trained EfficientNet-B0 on small datasets
+                       # (Howard & Ruder 2018; Kornblith et al. 2019)
+                       # 1e-3 was used in the original submission but is too aggressive for
+                       # partial fine-tuning on 20 images/class (few-shot regime).
 WEIGHT_DECAY  = 1e-4
 NUM_TRIALS    = 5      # fixed-trial mode seeds (matches submitted paper; k-fold gives 15 folds for R3.1)
 

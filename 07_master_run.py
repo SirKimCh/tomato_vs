@@ -20,10 +20,10 @@ Addresses ALL Q1-reviewer requirements:
 
 No interactive input — all parameters via command-line arguments.
 
-Current settings (khớp với bài nộp gốc):
+Current settings (đúng cho bài revision):
   test_count  : 100/class   (đảm bảo số liệu so sánh được với submitted paper)
-  lr          : 1e-3        (AdamW, matches submitted paper)
-  Gemini      : gemini-2.0-flash
+  lr          : 1e-4        (standard for partial fine-tuning on few-shot data; Howard & Ruder 2018)
+  Gemini      : gemini-2.5-flash (2.0-flash deprecated June 2026)
   Fixed trials: 5           (matches submitted paper; --no_kfold flag)
   K-Fold      : 15 folds    (PRIMARY for revision — addresses R3.1, R3.6)
 
