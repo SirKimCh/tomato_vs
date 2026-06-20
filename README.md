@@ -15,13 +15,14 @@ This study benchmarks **Stable Diffusion img2img** as a data augmentation techni
 | # | Method | Key Idea | Train Size |
 |---|--------|----------|-----------|
 | 1 | **Baseline** | No augmentation | 20 orig/class |
-| 2 | **TDA ×5** | Flip + Rotate + ColorJitter | 100/class |
-| 3 | **SD ×5 (LLM)** | Stable Diffusion img2img + Gemini prompts | 100/class |
+| 2 | **TDA ×5** | Flip + Rotate + ColorJitter (pre-generated) | 100/class |
+| 3 | **SD ×5 (LLM)** | Stable Diffusion img2img + Gemini 2.5 Flash prompts | 100/class |
 | 4 | **MixUp** | Online convex combination of image pairs | 20 orig/class |
 | 5 | **CutMix** | Online rectangular region swapping | 20 orig/class |
 | 6 | **RandAugment ×5** | Pre-generated RandAugment policy | 100/class |
-| 7 | **SD ×5 (Label)** | SD with simple label-name prompts (ablation) | 100/class |
-| 8 | **GAN ×5** | DCGAN trained per-class (separate pipeline) | 100/class |
+| 7 | **SD ×5 (Label)** | SD with simple label-name prompts [ablation R6] | 100/class |
+
+> **Note (GAN):** A separate DCGAN pipeline exists (`02_3_gen_gan.py`, `03_1_run_gan_experiment.py`) but is **not part of the main submitted results** — it is an optional exploratory comparison only.
 
 ### Reviewer Requirements — fully addressed
 
@@ -34,7 +35,7 @@ This study benchmarks **Stable Diffusion img2img** as a data augmentation techni
 | R5 | Missing MixUp/CutMix/RandAugment baselines | Added with identical protocol | `03_run_experiments.py --extra_baselines` |
 | R6 | No ablation on prompt type | SD Gemini LLM vs label-name prompts | `02_2b_gen_sd_labelonly.py + --ablation_prompt` |
 | R7 | No ablation on augmentation quantity | `--aug_limit 1–4` = 2×/3×/4×/5× | `03_run_experiments.py` |
-| R8 | Ratio 20-80-80 lacks empirical basis | Sensitivity: test_count ∈ {40, 80, 100} | `07_master_run.py` sensitivity phase |
+| R8 | Ratio 20-80-80 lacks empirical basis | Sensitivity: **aug_limit ∈ {1,2,3}** → 2×/3×/4× aug ratio (fixed test set) | `07_master_run.py` Phase 2 |
 | R9 | n=5 insufficient; add normality + Friedman | **10 fixed trials** (was 5); Shapiro-Wilk + Friedman test | `03_run_experiments.py` + `03_3_analyze_results.py` |
 | R10 | Large EB↔LB confusion; no per-class analysis | Per-class F1 + EB/LB confusion rate per method | `03_run_experiments.py` + `03_3_analyze_results.py` |
 

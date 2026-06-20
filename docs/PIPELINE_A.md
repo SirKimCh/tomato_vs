@@ -27,13 +27,25 @@ For each (Strength, Guidance):
 9. `04_visualize_results.py` — Charts
 10. `03_3_analyze_results.py` — Statistical significance
 
-### Phase 2: Sensitivity analysis
-For test_count ∈ {40, 80, 100}:
-1. Re-run `01_data_setup.py` (train images identical, only test changes)
-2. Restore backed-up tda_x5 and randaugment_x5
-3. Re-generate SD for best combo
-4. `03_run_experiments.py` (5 fixed trials for speed)
+### Phase 2: Sensitivity analysis — augmentation ratio  [R8]
+For aug_limit ∈ {1, 2, 3}  (aug_limit=4 = 5× is the Phase-1 main result):
+
+| aug_limit | Ratio label | Train/class |
+|-----------|-------------|-------------|
+| 1 | 2× (20-20-20) | 60 |
+| 2 | 3× (20-40-40) | 100 |
+| 3 | 4× (20-60-60) | 140 |
+| **4 (Phase-1 main)** | **5× (20-80-80)** | **180** |
+
+1. Test set is **unchanged** — no `01_data_setup.py` re-run (same 80/class split as Phase 1)
+2. Restore Phase-0 datasets (tda_x5, randaugment_x5, baseline) from `Results/_phase0_backup/`
+3. Re-generate SD for best combo **once** (shared across all three aug_limit values)
+4. `03_run_experiments.py --use_kfold --aug_limit {1,2,3}` — k-fold is **required** (`aug_limit` only takes effect in `get_fold_aug_samples()`; fixed-trial mode ignores it)
 5. Visualize + analyze
+
+> **Note**: This design was corrected from an earlier draft that mistakenly varied `test_count`.
+> The correct sensitivity variable is `aug_limit` (augmentation ratio in training), NOT test set size.
+> See `EXPERIMENTAL_DESIGN.md §9` and `REVIEWER_RESPONSES.md R8` for full rationale.
 
 ---
 

@@ -43,9 +43,20 @@ Training with 20 original images per class.
 Training-time transforms: RandomHorizontalFlip, RandomRotation(15°), ColorJitter.
 
 ### 3.2 TDA ×5 (Traditional Data Augmentation)
-Pre-generates 4 augmented copies per original (total 5×).
-Transform pipeline: Resize → RandomHorizontalFlip → RandomRotation → ColorJitter → Normalise.
-Implemented in `02_1_gen_tda.py`.
+Pre-generates 4 augmented copies per original (total 5×).  
+Library: `torchvision.transforms` (via `src/configurations/augmentation_config.py`).
+
+Transform pipeline applied to each copy:
+1. `Resize((224, 224))`
+2. `RandomHorizontalFlip(p=0.5)`
+3. `RandomRotation(degrees=20)`
+4. `ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1)`
+5. `ToTensor()`
+6. `Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])`
+
+Implemented in `02_1_gen_tda.py`.  
+Parameter source: `AugmentationConfig.GEOMETRIC_TRANSFORMS["rotation"]["ranges"]["degrees"][1]` = 20°;
+`AugmentationConfig.PHOTOMETRIC_TRANSFORMS["color_combined"]` = brightness/contrast/saturation=0.2, hue=0.1.
 
 ### 3.3 SD ×5 (Stable Diffusion img2img)
 - Model: `runwayml/stable-diffusion-v1-5` (fp16, CPU offload for 6 GB VRAM)
