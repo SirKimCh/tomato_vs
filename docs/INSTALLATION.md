@@ -1,15 +1,15 @@
-# Detailed Installation Guide (Revised for CUDA 12.x / GTX 3050)
+# Detailed Installation Guide (Revised for CUDA 12.x / RTX 3050 Ti / RTX 5060 Ti)
 
 ## 1. Hardware Requirements
 
 | Component | Minimum | Tested |
 |-----------|---------|--------|
-| GPU | NVIDIA CUDA | **GeForce GTX 3050 6 GB** |
-| CUDA | 11.8+ | **12.1 / 12.2** |
+| GPU | NVIDIA CUDA | **RTX 3050 Ti 4 GB** / **RTX 5060 Ti 16 GB** |
+| CUDA | 12.1+ (Ampere) / 12.8+ (Blackwell) | **12.1 / 12.8** |
 | RAM | 8 GB | 16 GB |
 | Disk | 15 GB | 30 GB |
 | OS | Windows 10/11 or Ubuntu 20.04+ | Windows 11 |
-| Python | 3.8+ | 3.10 |
+| Python | 3.8+ | **3.13** |
 
 > All scripts check `torch.cuda.is_available()` at startup and exit with `"No GPU Found"` if no CUDA device is detected.
 
@@ -61,14 +61,18 @@ python -m venv venv
 source venv/bin/activate
 ```
 
-### 3.3. Install PyTorch for CUDA 12.1 (GTX 3050)
+### 3.3. Install PyTorch (choose per GPU)
 
 ```bash
+# RTX 3050 Ti (Ampere, CUDA 12.1)
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# RTX 5060 Ti (Blackwell, CUDA 12.8 — requires PyTorch >= 2.6)
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
 ```
 
-> **For CUDA 12.4+** (newer drivers): replace `cu121` with `cu124`.  
-> Run `nvidia-smi` to check your driver version.
+> Run `nvidia-smi` to check your driver version.  
+> Blackwell GPUs (RTX 50xx) **require** CUDA 12.8 and PyTorch ≥ 2.6.
 
 ### 3.4. Install all other dependencies
 
@@ -143,11 +147,11 @@ python tomato_vs/00_check_requirements.py
 
 Expected output (no `[!!]` errors):
 ```
-[OK] Python 3.10.x
-[OK] nvidia-smi: NVIDIA GeForce GTX 3050, 6144 MiB, ...
+[OK] Python 3.13.x
+[OK] nvidia-smi: NVIDIA GeForce RTX 3050 Ti, 4096 MiB, ...   (or RTX 5060 Ti, 16376 MiB)
 [OK] PyTorch 2.x.x+cu121  —  CUDA 12.1
-[OK] GPU  : NVIDIA GeForce GTX 3050
-[OK] VRAM : 6.0 GB
+[OK] GPU  : NVIDIA GeForce RTX 3050 Ti
+[OK] VRAM : 4.0 GB
 [OK] torch                 2.x.x
 [OK] torchvision           0.x.x
 ...

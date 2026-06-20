@@ -94,7 +94,7 @@ transform_train = transforms.Compose([
 ])
 ```
 
-> **Note:** For MixUp/CutMix experiments, no additional training-time transform is added (online mixing already provides augmentation). For RandAugment experiments, `transforms.RandAugment(num_ops=2, magnitude=9)` replaces the standard ColorJitter.
+> **Note:** For MixUp/CutMix experiments, the same `tf_train` (flip, rotation, colorjitter) is applied as a base transform, with online mixing applied on top of the transformed batch. For AutoAugment/AugMix, their respective policies replace ColorJitter. For RandAugment, `transforms.RandAugment(num_ops=2, magnitude=9)` is used.
 
 ---
 
@@ -109,6 +109,7 @@ transform_train = transforms.Compose([
 | MCC | `matthews_corrcoef` | Best single metric for imbalanced classes |
 | AUC-ROC | `roc_auc_score(OvR, weighted)` | Discrimination ability |
 | FID | `torchmetrics.image.FrechetInceptionDistance` | Image quality (lower = better) |
+| IS | `torchmetrics.image.InceptionScore` | Quality + diversity (higher = better). ⚠️ Supplementary; unreliable for plant-disease domain (Inception v3 trained on ImageNet) |
 | LPIPS | `lpips.LPIPS(net='alex')` | Perceptual similarity |
 | Wilcoxon p | `scipy.stats.wilcoxon` | Statistical significance |
 | Cohen's d | Pooled std formula | Effect size |

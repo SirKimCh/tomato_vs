@@ -9,7 +9,7 @@ All scripts are in `tomato_vs/` and must be run from `leaf-disease-ai/` (parent 
 python tomato_vs/00_check_requirements.py
 python tomato_vs/00_check_requirements.py --install   # auto-install missing pkgs
 ```
-Checks Python, CUDA 12.x, GPU (GTX 3050 6 GB), all packages, .env, Data_OG.
+Checks Python, CUDA 12.x, GPU (RTX 3050 Ti 4 GB / RTX 5060 Ti 16 GB), all packages, .env, Data_OG.
 
 ---
 
@@ -63,7 +63,7 @@ python tomato_vs/02_4_compute_image_quality.py \
     --strength 0.35 --guidance 7.5 --run_dir Results/run1
 ```
 Outputs `image_quality_s0.35_g7.5.csv` + `image_quality_summary_*.csv`.  
-Computes FID (torchmetrics), LPIPS (lpips), label-noise proxy (cosine-NN).
+Computes FID (torchmetrics), IS/Inception Score (torchmetrics, supplementary — unreliable for plant-disease domain), LPIPS (lpips), label-noise proxy (cosine-NN).
 
 ---
 
