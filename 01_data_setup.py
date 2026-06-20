@@ -13,7 +13,7 @@ from pathlib import Path
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--train_count', type=int, default=20)
-parser.add_argument('--test_count', type=int, default=80)
+parser.add_argument('--test_count', type=int, default=100)
 args = parser.parse_args()
 
 random.seed(42)

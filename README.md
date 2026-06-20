@@ -16,7 +16,7 @@ This study benchmarks **Stable Diffusion img2img** as a data augmentation techni
 |---|--------|----------|-----------|
 | 1 | **Baseline** | No augmentation | 20 orig/class |
 | 2 | **TDA ×5** | Flip + Rotate + ColorJitter (pre-generated) | 100/class |
-| 3 | **SD ×5 (LLM)** | Stable Diffusion img2img + Gemini 2.5 Flash prompts | 100/class |
+| 3 | **SD ×5 (LLM)** | Stable Diffusion img2img + Gemini 2.0 Flash prompts | 100/class |
 | 4 | **MixUp** | Online convex combination of image pairs | 20 orig/class |
 | 5 | **CutMix** | Online rectangular region swapping | 20 orig/class |
 | 6 | **RandAugment ×5** | Pre-generated RandAugment policy | 100/class |
@@ -36,7 +36,7 @@ This study benchmarks **Stable Diffusion img2img** as a data augmentation techni
 | R6 | No ablation on prompt type | SD Gemini LLM vs label-name prompts | `02_2b_gen_sd_labelonly.py + --ablation_prompt` |
 | R7 | No ablation on augmentation quantity | `--aug_limit 1–4` = 2×/3×/4×/5× | `03_run_experiments.py` |
 | R8 | Ratio 20-80-80 lacks empirical basis | Sensitivity: **aug_limit ∈ {1,2,3}** → 2×/3×/4× aug ratio (fixed test set) | `07_master_run.py` Phase 2 |
-| R9 | n=5 insufficient; add normality + Friedman | **10 fixed trials** (was 5); Shapiro-Wilk + Friedman test | `03_run_experiments.py` + `03_3_analyze_results.py` |
+| R9 | n=5 insufficient; add normality + Friedman | **k-fold 15 folds** (primary, R3.1/R3.6); fixed-trial=5 matches submitted paper; Shapiro-Wilk + Friedman test | `03_run_experiments.py --use_kfold` + `03_3_analyze_results.py` |
 | R10 | Large EB↔LB confusion; no per-class analysis | Per-class F1 + EB/LB confusion rate per method | `03_run_experiments.py` + `03_3_analyze_results.py` |
 
 ---
@@ -89,7 +89,7 @@ python tomato_vs/07_master_run.py
 # Single SD combination (fast test)
 python tomato_vs/07_master_run.py --mode one --strength 0.35 --guidance 7.5
 
-# Skip k-fold (use 10 fixed trials, faster than 15-fold)  [R9]
+# Skip k-fold (use 5 fixed trials, matches submitted paper)
 python tomato_vs/07_master_run.py --no_kfold
 
 # Skip slower optional steps
@@ -135,8 +135,8 @@ tomato_vs/
 ## Experimental Protocol
 
 - **Model**: EfficientNet-B0 (ImageNet), last 3 blocks + classifier unfrozen
-- **Optimizer**: AdamW (lr=1e-4, wd=1e-4) + CosineAnnealingWarmRestarts
-- **CV**: RepeatedStratifiedKFold(k=5, n=3) → 15 folds  OR  10 fixed trials [R9]
+- **Optimizer**: AdamW (lr=1e-3, wd=1e-4) + CosineAnnealingWarmRestarts
+- **CV**: RepeatedStratifiedKFold(k=5, n=3) → 15 folds [primary]  OR  5 fixed trials [matches submitted paper]
 - **Metrics**: Acc, Precision, Recall, F1 (weighted), MCC, AUC-ROC, FID, LPIPS
 - **Stats**: Friedman test (global) + Wilcoxon signed-rank + Cohen's d [R9]
 - **Per-class**: F1 per class + Early Blight↔Late Blight confusion rate [R10]

@@ -38,7 +38,7 @@ class EfficientNetB0Model(BaseModel):
 
 | Parameter | Value | Notes |
 |-----------|-------|-------|
-| **Optimizer** | AdamW | lr=1e-4, weight_decay=1e-4 |
+| **Optimizer** | AdamW | lr=1e-3, weight_decay=1e-4 |
 | **LR Scheduler** | CosineAnnealingWarmRestarts | T_0=10, T_mult=2, η_min=1e-7 |
 | **Loss** | CrossEntropyLoss | MixUp/CutMix use mixed-label loss |
 | **Epochs** | 50 | Maximum |
@@ -78,7 +78,7 @@ for param in model.model.features[-3:].parameters():
 
 ```python
 model = EfficientNetB0Model(num_classes=5, pretrained=pretrained_flag)
-optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
 ```
 
 ### Training-time Data Augmentation (applied to all datasets except test)

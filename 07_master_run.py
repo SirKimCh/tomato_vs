@@ -11,13 +11,26 @@ Addresses ALL Q1-reviewer requirements:
   R6. Ablation       : prompt type (Gemini LLM vs label-name)
   R7. Ablation       : augmentation quantity (2× / 3× / 4× / 5×)
    R8. Sensitivity    : augmentation ratio in TRAIN (aug_limit 1→4 = 2×–5×)  [R3.8]
-                       Answers: "is the 20-80-80 training ratio heuristic?"
-  R9. ≥10 runs       : fixed-trial mode uses 10 runs; k-fold gives 15 folds.
-                       Shapiro-Wilk normality + Friedman test in analyze step.
+                        Answers: "is the 20-80-80 training ratio heuristic?"
+   R9. ≥10 evaluations: k-fold gives 15 folds (5×3); fixed-trial mode uses 5 runs
+                        (matches submitted paper; k-fold is the primary mode for R3.1/R3.6).
+                        Shapiro-Wilk normality + Friedman test in analyze step.
  R10. Per-class      : Early Blight vs Late Blight confusion rate per method.
                        per_class_metrics.csv + per_class_comparison.png auto-saved.
 
 No interactive input — all parameters via command-line arguments.
+
+Current settings (khớp với bài nộp gốc):
+  test_count  : 100/class   (đảm bảo số liệu so sánh được với submitted paper)
+  lr          : 1e-3        (AdamW, matches submitted paper)
+  Gemini      : gemini-2.0-flash
+  Fixed trials: 5           (matches submitted paper; --no_kfold flag)
+  K-Fold      : 15 folds    (PRIMARY for revision — addresses R3.1, R3.6)
+
+⚠️  Nếu Results/ còn kết quả từ lần chạy trước với settings khác, hãy xóa trước:
+      Remove-Item -Recurse -Force tomato_vs/Results/*
+  (07_master_run.py tạo thư mục mới theo timestamp — kết quả cũ không bị ghi đè
+   nhưng sẽ gây lẫn lộn khi phân tích tổng hợp.)
 
 Usage:
   # Full grid search (9 SD combos × all analyses)  [DEFAULT]
@@ -26,7 +39,7 @@ Usage:
   # Single combination for testing
   python tomato_vs/07_master_run.py --mode one --strength 0.35 --guidance 7.5
 
-  # Full run, skip k-fold to save time (use 10 fixed trials)
+  # Full run, skip k-fold to save time (use 5 fixed trials, matching submitted paper)
   python tomato_vs/07_master_run.py --no_kfold
 
   # Skip optional slow steps
@@ -55,8 +68,8 @@ parser.add_argument('--mode',     choices=['full', 'one'], default='full',
                     help='"full" runs all 9 SD combos; "one" runs a single combo')
 parser.add_argument('--train_count', type=int, default=20,
                     help='Training images per class (default 20)')
-parser.add_argument('--test_count',  type=int, default=80,
-                    help='Test images per class for main run (default 80)')
+parser.add_argument('--test_count',  type=int, default=100,
+                    help='Test images per class for main run (default 100, matches submitted paper)')
 # one-mode overrides
 parser.add_argument('--strength', type=float, default=0.50,
                     help='SD strength  (for --mode one)')
@@ -73,7 +86,7 @@ parser.add_argument('--skip_label_sd',      action='store_true',
 parser.add_argument('--skip_image_quality', action='store_true')
 parser.add_argument('--skip_diversity',     action='store_true')
 parser.add_argument('--no_kfold',           action='store_true',
-                    help='Use 10 fixed trials instead of repeated k-fold  [R9]')
+                    help='Use 5 fixed trials instead of repeated k-fold (matches submitted paper)')
 parser.add_argument('--skip_extra_baselines', action='store_true',
                     help='Skip MixUp/CutMix/RandAugment baselines')
 parser.add_argument('--skip_ablation_prompt', action='store_true',
@@ -176,7 +189,7 @@ print("\n" + "="*70)
 print("TOMATO-VS  ·  MASTER RUN  (Reviewer-Revised)")
 print(f"  Mode        : {args.mode}  ({'all 9 combos' if args.mode=='full' else '1 combo'})")
 print(f"  Train count : {args.train_count}  |  Test count : {args.test_count}")
-print(f"  K-Fold      : {'RepeatedStratifiedKFold (5×3=15 folds)' if not args.no_kfold else '10 fixed trials  [R9]'}")
+print(f"  K-Fold      : {'RepeatedStratifiedKFold (5×3=15 folds)' if not args.no_kfold else '5 fixed trials  [matches submitted paper]'}")
 print(f"  Combos      : {combos}")
 print("="*70)
 

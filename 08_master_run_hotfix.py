@@ -4,19 +4,33 @@
 Tự động phát hiện combo SD nào đã hoàn thành (qua Results/ folder) và tiếp tục
 chạy từ chỗ bị gián đoạn. Không cần can thiệp thủ công.
 
-Tình huống phục hồi:
+⚠️  QUAN TRỌNG — TRƯỚC KHI CHẠY:
+  File này CHỈ dùng để TIẾP TỤC sau khi mất điện / gián đoạn.
+  Nó sẽ TỰ ĐỘNG BỎ QUA mọi combo đã có metrics_summary.csv trong Results/.
+  
+  Nếu bạn muốn chạy lại từ đầu với settings mới (ví dụ: test_count, lr đã sửa),
+  hãy XÓA các thư mục kết quả cũ trước:
+    Remove-Item -Recurse -Force tomato_vs/Results/*
+  Hoặc dùng 07_master_run.py (luôn chạy lại từ đầu hoàn toàn).
+
+Tình huống phục hồi (sau power loss trong cùng một lần chạy):
   - Phase 0 (data/TDA/RandAugment): đã xong → tự bỏ qua
-  - Phase 1 combo 1-6 (s0.35,s0.50 × g6,7.5,9): đã xong → tự bỏ qua
-  - Phase 1 combo 7 (s0.65,g6.0): SD đã gen (500 img), thực nghiệm chưa chạy
-                                    → bỏ qua bước gen, chạy từ 1-B
-  - Phase 1 combo 8-9 (s0.65,g7.5 & g9.0): chưa chạy → chạy đầy đủ
-  - Phase 2 sensitivity (aug_limit=1,2,3): chưa chạy → chạy đầy đủ (R3.8)
+  - Phase 1 combos đã có metrics_summary.csv → tự bỏ qua
+  - Phase 1 combos chưa có metrics_summary.csv → chạy đầy đủ
+  - Phase 2 sensitivity (aug_limit=1,2,3): tự detect → chạy phần còn lại
 
 Nếu mất điện lần nữa: chạy lại file này — sẽ tự detect và tiếp tục.
 
+Current settings (phải khớp với bài nộp):
+  test_count  : 100/class
+  lr          : 1e-3
+  Gemini model: gemini-2.0-flash
+  Fixed trials: 5 (matches submitted paper)
+  K-Fold mode : 15 folds = 5×3 (PRIMARY for revision)
+
 Usage:
-    python tomato_vs/08_master_run_hotfix.py            # k-fold (15 folds) [default]
-    python tomato_vs/08_master_run_hotfix.py --no_kfold  # 10 fixed trials  [R9]
+    python tomato_vs/08_master_run_hotfix.py            # k-fold (15 folds) [default, primary]
+    python tomato_vs/08_master_run_hotfix.py --no_kfold  # 5 fixed trials   [matches paper]
     python tomato_vs/08_master_run_hotfix.py --skip_sensitivity
     python tomato_vs/08_master_run_hotfix.py --skip_image_quality --skip_diversity
 """
@@ -45,10 +59,10 @@ parser = argparse.ArgumentParser(
     description='08_master_run_hotfix: Resume interrupted experimental pipeline')
 parser.add_argument('--train_count', type=int, default=20,
                     help='Training images per class (default 20, must match original run)')
-parser.add_argument('--test_count', type=int, default=80,
-                    help='Test images per class for Phase-1 combos (default 80)')
+parser.add_argument('--test_count', type=int, default=100,
+                    help='Test images per class for Phase-1 combos (default 100, matches submitted paper)')
 parser.add_argument('--no_kfold', action='store_true',
-                    help='Use 10 fixed trials instead of RepeatedStratifiedKFold [R9]')
+                    help='Use 5 fixed trials instead of RepeatedStratifiedKFold (matches submitted paper)')
 parser.add_argument('--skip_image_quality', action='store_true',
                     help='Skip FID/LPIPS/Label-noise computation (02_4)')
 parser.add_argument('--skip_diversity', action='store_true',
@@ -228,7 +242,7 @@ def pick_best_combo(summary_rows: list):
 print("\n" + "=" * 70)
 print("TOMATO-VS  ·  MASTER RUN HOTFIX  (Power-Loss Recovery)")
 print(f"  Train count : {args.train_count}  |  Test count : {args.test_count}")
-print(f"  K-Fold      : {'RepeatedStratifiedKFold (5×3=15)' if not args.no_kfold else '10 fixed trials [R9]'}")
+print(f"  K-Fold      : {'RepeatedStratifiedKFold (5×3=15)' if not args.no_kfold else '5 fixed trials [matches submitted paper]'}")
 print("=" * 70)
 
 # ── Detect state ──────────────────────────────────────────────────────────────

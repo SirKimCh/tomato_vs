@@ -30,7 +30,7 @@ from src.models.efficientnet_b0 import EfficientNetB0Model
 BATCH_SIZE = 8
 EPOCHS = 50
 PATIENCE = 10
-LEARNING_RATE = 1e-4
+LEARNING_RATE = 1e-3   # matches submitted paper and 03_run_experiments.py
 WEIGHT_DECAY = 1e-4
 NUM_TRIALS = 5
 

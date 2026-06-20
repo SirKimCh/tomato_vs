@@ -63,7 +63,7 @@ See [INSTALLATION.md](INSTALLATION.md#5-prepare-plantvillage-data).
 ## 6. "datasets/baseline/train does not exist"
 
 ```bash
-python tomato_vs/01_data_setup.py --train_count 20 --test_count 80
+python tomato_vs/01_data_setup.py --train_count 20 --test_count 100
 ```
 
 > **Warning:** This script deletes and recreates `datasets/` entirely.

@@ -15,7 +15,7 @@ Checks Python, CUDA 12.x, GPU (GTX 3050 6 GB), all packages, .env, Data_OG.
 
 ## 01_data_setup.py
 ```bash
-python tomato_vs/01_data_setup.py --train_count 20 --test_count 80
+python tomato_vs/01_data_setup.py --train_count 20 --test_count 100
 ```
 Splits PlantVillage → `datasets/baseline/train/` (20/class) + `datasets/test/` (N/class).  
 **Warning**: deletes and recreates `datasets/` on each run.
@@ -86,10 +86,10 @@ Generates `datasets/randaugment_x5/train/` (×5, filenames `*_raN.jpg`).
 
 ## 03_run_experiments.py
 ```bash
-# Standard (10 fixed trials)  [R9: ≥10 runs]
+# Standard (5 fixed trials, matches submitted paper)
 python tomato_vs/03_run_experiments.py --output_dir Results/run1 --train_count 20
 
-# Q1 mode (k-fold + all baselines + ablation + per-class)
+# Q1 primary mode (k-fold + all baselines + ablation + per-class)  [R3.1/R3.6]
 python tomato_vs/03_run_experiments.py --output_dir Results/run1 \
     --train_count 20 --use_kfold --extra_baselines --ablation_prompt
 

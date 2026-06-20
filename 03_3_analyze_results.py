@@ -332,7 +332,7 @@ if pc_file.exists():
                 else:
                     r_mean = sub_m['Precision'].mean()
                     r_std  = sub_m['Precision'].std()
-                    flag   = '  ← HIGH' if r_mean > 0.15 else ''
+                    flag   = '  ← HIGH' if r_mean > 0.10 else ''
                     print(f"  {m:<22} {r_mean:.3f}±{r_std:.3f}{flag}")
 else:
     print(f"\n[SKIP] Per-class analysis: {pc_file} not found.")

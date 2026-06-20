@@ -105,7 +105,7 @@ def generate_prompt_with_gemini(class_name):
         system_prompt = f"You are a plant pathologist. Describe the visual symptoms of {class_clean} on a leaf for an image generation prompt. Start with the plant and disease name (e.g., 'Tomato Early blight leaf'). Keep it under 50 words, comma-separated, focus on colors, spots, texture, and lesion patterns. End with 'macro photography, 4k'. No intro/outro."
 
         response = gemini_client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-2.0-flash",
             contents=system_prompt
         )
         generated_prompt = response.text.strip()

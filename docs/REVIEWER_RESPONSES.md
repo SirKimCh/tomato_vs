@@ -184,9 +184,9 @@ of large effect sizes with n=5. Increase to ≥10 runs. Check normality/spherici
 
 ### What was done
 
-**Increasing run count:**
-- `NUM_TRIALS` in `03_run_experiments.py` changed from **5 → 10** for fixed-trial mode
-- K-fold mode already uses `RepeatedStratifiedKFold(n_splits=5, n_repeats=3)` → **15 folds**, satisfying the ≥10 requirement
+**Increasing run count (satisfying R3.6 ≥10):**
+- K-fold mode uses `RepeatedStratifiedKFold(n_splits=5, n_repeats=3)` → **15 folds**, satisfying the ≥10 requirement  (this is the **primary evaluation mode**)
+- Fixed-trial mode keeps `NUM_TRIALS = 5` to match the submitted paper; used only when `--no_kfold` is passed
 - Sensitivity analysis (Phase 2) uses k-fold (15 folds) — consistent with Phase 1
 
 **Normality test (Shapiro-Wilk):**

@@ -196,8 +196,11 @@ for ds in DATASETS:
         paths_for_lpips = (random.sample(all_paths, subsample_n)
                            if len(all_paths) > subsample_n else all_paths)
 
+        # LPIPS: subsampled to equal baseline size → fair per-N comparison (R3.4)
+        # Feature dispersion: uses ALL images → measures actual spread of full aug set
+        # (intentional asymmetry: diversity = how spread is the augmented distribution?)
         lp  = lpips_intraclass(paths_for_lpips, n_pairs=args.n_pairs)
-        fd  = feature_dispersion(all_paths)   # dispersion uses all images
+        fd  = feature_dispersion(all_paths)   # full set: measures total spread
         print(f"  {cls:<40}: LPIPS_intra={lp:+.4f}  FeatDisp={fd:.4f}  "
               f"(LPIPS on {len(paths_for_lpips)}, FeatDisp on {len(all_paths)})")
         rows.append({

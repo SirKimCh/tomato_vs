@@ -55,7 +55,7 @@ For aug_limit ∈ {1, 2, 3}  (aug_limit=4 = 5× is the Phase-1 main result):
 cd leaf-disease-ai
 
 # Phase 0
-python tomato_vs/01_data_setup.py --train_count 20 --test_count 80
+python tomato_vs/01_data_setup.py --train_count 20 --test_count 100
 python tomato_vs/02_1_gen_tda.py
 python tomato_vs/02_6_gen_baselines.py
 

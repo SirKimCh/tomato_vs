@@ -16,11 +16,11 @@ Ablation (--ablation_prompt):
   sd_labelonly_x5 — SD with label-only prompts vs Gemini LLM prompts
 
 Cross-validation modes:
-  Default     : 5 independent trials with random seeds (fast, backward-compat)
+  Default     : 5 independent trials with random seeds (matches submitted paper)
   --use_kfold : RepeatedStratifiedKFold (n_splits=5, n_repeats=3 → 15 folds)
                 K-fold splits original baseline images; augmented images
                 derived from held-out originals are excluded from training,
-                preventing data leakage.
+                preventing data leakage.  PRIMARY mode for revision (R3.1/R3.6).
 
 Quantity ablation (--aug_limit):
   Limit augmented images per original  (1→2×, 2→3×, 3→4×, 4→5×)
@@ -81,13 +81,24 @@ parser.add_argument('--aug_limit',       type=int,  default=4,
                          'regardless of aug_limit. Use --use_kfold for sensitivity analysis.')
 args = parser.parse_args()
 
+# Runtime guard: aug_limit is silently ignored in fixed-trial mode (by design — fixed-trial
+# loads the full dataset directory).  Warn loudly so the user doesn't run sensitivity
+# analysis without k-fold and get misleading results.
+if args.aug_limit != 4 and not args.use_kfold:
+    print("=" * 70)
+    print("  WARNING: --aug_limit is IGNORED in fixed-trial mode.")
+    print("  aug_limit is only respected by get_fold_aug_samples() in k-fold mode.")
+    print("  For sensitivity analysis, always pass --use_kfold as well.")
+    print("  Add --use_kfold to your command, or accept that aug_limit has no effect.")
+    print("=" * 70)
+
 # ─────────────────────────── Hyper-parameters ────────────────────────────────
 BATCH_SIZE    = 8
 EPOCHS        = 50
 PATIENCE      = 10
-LEARNING_RATE = 1e-4
+LEARNING_RATE = 1e-3   # original paper setting (AdamW, matches submitted manuscript)
 WEIGHT_DECAY  = 1e-4
-NUM_TRIALS    = 10     # used only when --use_kfold is False (reviewer: ≥10 runs)
+NUM_TRIALS    = 5      # fixed-trial mode seeds (matches submitted paper; k-fold gives 15 folds for R3.1)
 
 device       = torch.device('cuda')
 base_dir     = Path(__file__).parent.resolve()

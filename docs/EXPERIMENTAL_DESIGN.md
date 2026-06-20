@@ -61,7 +61,7 @@ Parameter source: `AugmentationConfig.GEOMETRIC_TRANSFORMS["rotation"]["ranges"]
 ### 3.3 SD ×5 (Stable Diffusion img2img)
 - Model: `runwayml/stable-diffusion-v1-5` (fp16, CPU offload for 6 GB VRAM)
 - Input: 512×512 resized original image
-- Prompt: generated via Gemini 2.5 Flash API (disease-specific expert description)
+- Prompt: generated via Gemini 2.0 Flash API (disease-specific expert description)
 - Negative prompt: suppresses cartoon, non-leaf content
 - Grid search: Strength ∈ {0.35, 0.50, 0.65}, Guidance ∈ {6.0, 7.5, 9.0}
 - Output: 4 generated images per original, stored as `*_sdN.jpg`
@@ -106,7 +106,7 @@ Implemented in `02_2b_gen_sd_labelonly.py`.
 | Hyperparameter | Value |
 |----------------|-------|
 | Optimizer | AdamW |
-| Learning rate | 1e-4 |
+| Learning rate | 1e-3 |
 | Weight decay | 1e-4 |
 | LR scheduler | CosineAnnealingWarmRestarts (T_0=10, T_mult=2, η_min=1e-7) |
 | Batch size | 8 |
@@ -118,16 +118,17 @@ Implemented in `02_2b_gen_sd_labelonly.py`.
 
 ## 5. Cross-Validation Protocol
 
-**Mode**: RepeatedStratifiedKFold (default) or 10 fixed independent trials
+**Mode**: RepeatedStratifiedKFold (default, primary) or 5 fixed independent trials (matches submitted paper)
 
 | Parameter | K-Fold mode | Fixed-trial mode |
 |-----------|-------------|-----------------|
 | n_splits | 5 | N/A |
 | n_repeats | 3 | N/A |
-| random_state | 42 | seeds 43–52 |
-| Total evaluations | **15 per method** | **10 per method** [R9] |
+| random_state | 42 | seeds 43–47 |
+| Total evaluations | **15 per method** | **5 per method** [matches submitted paper] |
 
-Both modes satisfy the reviewer requirement of ≥10 independent evaluations (R9).
+K-Fold mode satisfies reviewer R3.1/R3.6 with 15 independent evaluations (5×3 folds).
+Fixed-trial mode matches the original 5-seed setup from the submitted manuscript.
 
 **Splitting procedure (K-Fold):**
 1. The 20 original baseline images per class form the splitting pool.
@@ -252,7 +253,7 @@ picture of the augmentation quantity–performance curve.
 ### 10.1 Prompt Type
 | Condition | Prompt Source | Expected Outcome |
 |-----------|--------------|-----------------|
-| `sd_x5` | Gemini 2.5 Flash expert description | More semantically accurate images |
+| `sd_x5` | Gemini 2.0 Flash expert description | More semantically accurate images |
 | `sd_labelonly_x5` | Template `"tomato leaf {class}"` | Less targeted images |
 
 ### 10.2 Augmentation Quantity
