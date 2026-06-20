@@ -20,7 +20,9 @@ This study benchmarks **Stable Diffusion img2img** as a data augmentation techni
 | 4 | **MixUp** | Online convex combination of image pairs | 20 orig/class |
 | 5 | **CutMix** | Online rectangular region swapping | 20 orig/class |
 | 6 | **RandAugment ×5** | Pre-generated RandAugment policy | 100/class |
-| 7 | **SD ×5 (Label)** | SD with simple label-name prompts [ablation R6] | 100/class |
+| 7 | **AutoAugment** | Online AutoAugment (ImageNet policy) \[R3.7\] | 20 orig/class |
+| 8 | **AugMix** | Online AugMix stochastic mixing \[R3.7\] | 20 orig/class |
+| 9 | **SD ×5 (Label)** | SD with simple label-name prompts \[ablation R6\] | 100/class |
 
 > **Note (GAN):** A separate DCGAN pipeline exists (`02_3_gen_gan.py`, `03_1_run_gan_experiment.py`) but is **not part of the main submitted results** — it is an optional exploratory comparison only.
 
@@ -35,6 +37,7 @@ This study benchmarks **Stable Diffusion img2img** as a data augmentation techni
 | R5 | Missing MixUp/CutMix/RandAugment baselines | Added with identical protocol | `03_run_experiments.py --extra_baselines` |
 | R6 | No ablation on prompt type | SD Gemini LLM vs label-name prompts | `02_2b_gen_sd_labelonly.py + --ablation_prompt` |
 | R7 | No ablation on augmentation quantity | `--aug_limit 1–4` = 2×/3×/4×/5× | `03_run_experiments.py` |
+| R7+ | AutoAugment / AugMix baselines | Added as extra baselines (online) | `03_run_experiments.py --extra_baselines` |
 | R8 | Ratio 20-80-80 lacks empirical basis | Sensitivity: **aug_limit ∈ {1,2,3}** → 2×/3×/4× aug ratio (fixed test set) | `07_master_run.py` Phase 2 |
 | R9 | n=5 insufficient; add normality + Friedman | **k-fold 15 folds** (primary, R3.1/R3.6); fixed-trial=5 matches submitted paper; Shapiro-Wilk + Friedman test | `03_run_experiments.py --use_kfold` + `03_3_analyze_results.py` |
 | R10 | Large EB↔LB confusion; no per-class analysis | Per-class F1 + EB/LB confusion rate per method | `03_run_experiments.py` + `03_3_analyze_results.py` |
@@ -45,11 +48,11 @@ This study benchmarks **Stable Diffusion img2img** as a data augmentation techni
 
 | Component | Minimum | Tested |
 |-----------|---------|--------|
-| GPU | NVIDIA CUDA | **GeForce GTX 3050 6 GB** |
-| CUDA | 11.8+ | **12.1 / 12.2** |
+| GPU | NVIDIA CUDA | **RTX 3050 Ti 4 GB** / **RTX 5060 Ti 16 GB** |
+| CUDA | 12.1+ (Ampere) / 12.8+ (Blackwell) | **12.1 / 12.8** |
 | RAM | 8 GB | 16 GB |
 | Disk | 15 GB | 30 GB |
-| Python | 3.8+ | 3.10 |
+| Python | 3.8+ | **3.13** |
 
 ---
 
@@ -114,7 +117,7 @@ tomato_vs/
 ├── 02_5_compute_diversity.py      ← LPIPS intra-class + feature dispersion
 ├── 02_6_gen_baselines.py          ← Generate RandAugment×5
 │
-├── 03_run_experiments.py          ← Train EfficientNet-B0 (k-fold or 10-trial) [R9]
+├── 03_run_experiments.py          ← Train EfficientNet-B0 (k-fold or 5-trial) [R9]
 ├── 03_1_run_gan_experiment.py     ← Train EfficientNet-B0 on GAN dataset
 ├── 03_3_analyze_results.py        ← Wilcoxon tests / Cohen's d / ranking table
 │
@@ -137,7 +140,7 @@ tomato_vs/
 - **Model**: EfficientNet-B0 (ImageNet), last 3 blocks + classifier unfrozen
 - **Optimizer**: AdamW (lr=1e-4, wd=1e-4) + CosineAnnealingWarmRestarts
 - **CV**: RepeatedStratifiedKFold(k=5, n=3) → 15 folds [primary]  OR  5 fixed trials [matches submitted paper]
-- **Metrics**: Acc, Precision, Recall, F1 (weighted), MCC, AUC-ROC, FID, LPIPS
+- **Metrics**: Acc, Precision, Recall, F1 (weighted), MCC, AUC-ROC, FID, LPIPS, IS (supplementary)
 - **Stats**: Friedman test (global) + Wilcoxon signed-rank + Cohen's d [R9]
 - **Per-class**: F1 per class + Early Blight↔Late Blight confusion rate [R10]
 

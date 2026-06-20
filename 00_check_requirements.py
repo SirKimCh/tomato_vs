@@ -4,10 +4,10 @@
 Environment verification & auto-installer for the Tomato Leaf Disease pipeline.
 
 Designed for:
-  • NVIDIA GeForce RTX 3050  4 GB VRAM  (CPU-offload mode for SD)
+  • NVIDIA GeForce RTX 3050 Ti  4 GB VRAM  (CPU-offload mode for SD)
   • NVIDIA GeForce RTX 5060 Ti 16 GB VRAM  (full GPU mode; Blackwell – needs CUDA 12.8+)
   • CUDA 12.x  (12.1+ for Ampere; 12.8 for Blackwell/RTX 5060 Ti)
-  • Python 3.8 – 3.11
+  • Python 3.8+  (tested on 3.13)
 
 Run THIS SCRIPT FIRST, before any experiment:
   python tomato_vs/00_check_requirements.py

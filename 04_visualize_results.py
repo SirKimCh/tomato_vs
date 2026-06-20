@@ -28,7 +28,9 @@ df_curves = pd.read_csv(curves_file) if curves_file.exists() else None
 
 # Dynamically determine experiments present in the CSV
 ORDERED = ['baseline', 'tda_x5', 'sd_x5',
-           'mixup', 'cutmix', 'randaugment', 'sd_labelonly_x5']
+           'mixup', 'cutmix', 'randaugment',
+           'autoaugment', 'augmix',
+           'sd_labelonly_x5']
 COLOR_MAP = {
     'baseline':        '#2ecc71',
     'tda_x5':          '#3498db',
@@ -36,6 +38,8 @@ COLOR_MAP = {
     'mixup':           '#f39c12',
     'cutmix':          '#9b59b6',
     'randaugment':     '#1abc9c',
+    'autoaugment':     '#e91e63',   # R3.7 extra baseline
+    'augmix':          '#ff5722',   # R3.7 extra baseline
     'sd_labelonly_x5': '#e67e22',
 }
 LABEL_MAP = {
@@ -45,6 +49,8 @@ LABEL_MAP = {
     'mixup':           'MixUp',
     'cutmix':          'CutMix',
     'randaugment':     'RandAugment',
+    'autoaugment':     'AutoAugment',
+    'augmix':          'AugMix',
     'sd_labelonly_x5': 'SD x5 (Label)',
 }
 all_exps_in_csv = df_metrics['Exp'].unique().tolist()
@@ -152,7 +158,7 @@ if df_curves is not None and len(df_curves) > 0:
     axes[1].legend(loc='lower right', fontsize=8)
     axes[1].grid(alpha=0.3)
 
-    plt.suptitle('Learning Curves (Average ± Std over 5 Trials)', fontsize=14, fontweight='bold')
+    plt.suptitle('Learning Curves (Average ± Std over Trials/Folds)', fontsize=14, fontweight='bold')
     plt.tight_layout()
     plt.savefig(input_dir / 'loss_acc_aggregated.png', dpi=200, bbox_inches='tight')
     plt.close()

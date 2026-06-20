@@ -362,7 +362,12 @@ def _train_eval(train_ds, val_ds, test_ds,
     best_vl, patience, best_state = float('inf'), 0, None
 
     # AMP GradScaler — scales loss to prevent fp16 underflow; no-op when USE_AMP=False
-    scaler = torch.cuda.amp.GradScaler(enabled=USE_AMP)
+    # torch.amp.GradScaler is the new API (torch.cuda.amp.GradScaler deprecated PyTorch 2.4+)
+    # torch.amp.GradScaler was added in PyTorch 2.4; fallback for 2.0–2.3 machines (RTX 3050 Ti)
+    try:
+        scaler = torch.amp.GradScaler('cuda', enabled=USE_AMP)
+    except (AttributeError, TypeError):
+        scaler = torch.cuda.amp.GradScaler(enabled=USE_AMP)  # PyTorch < 2.4 fallback
 
     pbar = tqdm(range(EPOCHS), desc=f"{exp_name} T{trial_id}", leave=False)
     for epoch in pbar:
@@ -373,7 +378,7 @@ def _train_eval(train_ds, val_ds, test_ds,
             X, y = X.to(device), y.to(device)
             optimizer.zero_grad()
 
-            with torch.cuda.amp.autocast(enabled=USE_AMP):
+            with torch.amp.autocast('cuda', enabled=USE_AMP):
                 if aug_mode == 'mixup':
                     Xm, ya, yb, lam = mixup_data(X, y)
                     out  = model(Xm)
@@ -407,7 +412,7 @@ def _train_eval(train_ds, val_ds, test_ds,
         with torch.no_grad():
             for X, y in val_loader:
                 X, y = X.to(device), y.to(device)
-                with torch.cuda.amp.autocast(enabled=USE_AMP):
+                with torch.amp.autocast('cuda', enabled=USE_AMP):
                     out = model(X)
                 vl_run += criterion(out.float(), y).item()
                 vl_cor += (out.argmax(1) == y).sum().item()
@@ -457,7 +462,7 @@ def _train_eval(train_ds, val_ds, test_ds,
     with torch.no_grad():
         for X, y in te_loader:
             X, y = X.to(device), y.to(device)
-            with torch.cuda.amp.autocast(enabled=USE_AMP):
+            with torch.amp.autocast('cuda', enabled=USE_AMP):
                 out = model(X)
             probs_all.extend(torch.softmax(out.float(), 1).cpu().numpy())
             preds_all.extend(out.argmax(1).cpu().numpy())
