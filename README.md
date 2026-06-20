@@ -1,5 +1,5 @@
 # Tomato Leaf Disease Classification — Few-Shot Generative Data Augmentation
-## Revised for Q1 Reviewer Requirements (R1–R10)
+## Revised for Reviewer Requirements (R1–R10)
 
 > **Entry point:** `python tomato_vs/00_check_requirements.py --install`  
 > **Full experiment:** `python tomato_vs/07_master_run.py`
