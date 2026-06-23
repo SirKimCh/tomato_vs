@@ -30,12 +30,16 @@ This study benchmarks **Stable Diffusion img2img** as a data augmentation techni
 > Created automatically in Phase 1 of `07_master_run.py`; uses `per_type` k-fold
 > counting to ensure equal TDA/SD representation at every aug_limit.
 
-> **Training Configs** (supporting analysis, Phase 0-D):
-> `06_transfer_learning_comparison.py` compares 3 configurations on the baseline dataset
-> to justify why Config 1 (Transfer Learning + Partial Freezing) is the primary choice:
+> **Training Configs** (supporting analysis, Phase 1-D):
+> `06_transfer_learning_comparison.py` compares 3 configurations on **baseline AND CDA**
+> with **RepeatedStratifiedKFold (5×3 = 15 folds)** — consistent with the main experiments
+> (R3.1/R3.6) — to justify why Config 1 (Transfer Learning + Partial Freezing) is primary:
 > - Config 1: Transfer Learning + Partial Freezing ← **MAIN** (used for all experiments above)
 > - Config 2: Training from Scratch
 > - Config 3: Fine-tuning All Layers
+>
+> Run in `07_master_run.py` **Phase 1-D** (after SD/CDA generation) so the comparison
+> includes the best combo's `combined_tda_sd` (CDA). Output: `Results/training_config_comparison/`.
 
 > **Note (GAN):** A separate DCGAN pipeline exists (`02_3_gen_gan.py`, `03_1_run_gan_experiment.py`) but is **not part of the main submitted results** — it is an optional exploratory comparison only.
 
@@ -114,7 +118,8 @@ python tomato_vs/07_master_run.py --skip_image_quality --skip_diversity --skip_s
 # Skip CDA and training config comparison (run only 9-method main comparison)
 python tomato_vs/07_master_run.py --skip_cda --skip_training_configs
 
-# Run ONLY training config comparison (Phase 0-D standalone)
+# Run ONLY training config comparison (Phase 1-D standalone, 15-fold)
+# (baseline only unless datasets/combined_tda_sd/ exists — see docs/SCRIPTS_DETAIL.md)
 python tomato_vs/06_transfer_learning_comparison.py
 ```
 
@@ -145,10 +150,12 @@ tomato_vs/
 ├── 04_visualize_results.py        ← Bar charts, learning curves, CM grids
 ├── 04_1_visualize_with_gan.py     ← Visualization including GAN results
 │
-├── 05_final_comparison.py         ← Baseline vs Combined (TDA+SD) [standalone]
-├── 06_transfer_learning_comparison.py  ← 3 Training Configs comparison [Phase 0-D]
+├── 05_final_comparison.py         ← [LEGACY] Baseline vs Combined (TDA+SD), Data_ST + 5 trials
+│                                     superseded by cda_x9 (15-fold) in 03_run_experiments.py
+├── 06_transfer_learning_comparison.py  ← 3 Training Configs comparison [Phase 1-D]
 │                                          Config1=PartialFreezing, Config2=Scratch,
 │                                          Config3=FineTuneAll  (justifies Config 1)
+│                                          15-fold on baseline + CDA (combined_tda_sd)
 │
 └── 07_master_run.py               ← MASTER RUN (fully automated, no interaction)
 ```

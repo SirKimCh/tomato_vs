@@ -33,6 +33,10 @@ Usage:
     python tomato_vs/08_master_run_hotfix.py --no_kfold  # 5 fixed trials   [matches paper]
     python tomato_vs/08_master_run_hotfix.py --skip_sensitivity
     python tomato_vs/08_master_run_hotfix.py --skip_image_quality --skip_diversity
+    python tomato_vs/08_master_run_hotfix.py --skip_training_configs  # skip 3-config comparison
+
+Phase 1-D (training config comparison, baseline + CDA, 15 folds) runs once after
+all 9 combos finish; it is skipped automatically if its results already include CDA.
 """
 
 import sys
@@ -75,6 +79,8 @@ parser.add_argument('--skip_quantity_ablation', action='store_true',
                     help='Skip augmentation-quantity ablation (2x/3x/4x)')
 parser.add_argument('--skip_sensitivity', action='store_true',
                     help='Skip Phase-2 sensitivity analysis (augmentation ratio: 2×/3×/4×, R3.8)')
+parser.add_argument('--skip_training_configs', action='store_true',
+                    help='Skip 3-config training comparison (06_transfer_learning_comparison.py)')
 args = parser.parse_args()
 
 # ─────────────────────────── Paths ───────────────────────────────────────────
@@ -196,6 +202,40 @@ def create_combined_dataset():
             n = sum(1 for f in cls_dir.iterdir() if f.is_file())
             print(f"    {cls_dir.name}: {n} images")
     return True
+
+
+def restore_cda_for_combo(strength: float, guidance: float) -> bool:
+    """
+    Make datasets/combined_tda_sd available for the training-config comparison
+    by restoring the best combo's backed-up CDA (Phase-1 cleanup removes the
+    in-place copy but keeps run_dir/generated_images_backup/combined_tda_sd).
+    Returns True if datasets/combined_tda_sd is present afterwards.
+    """
+    dst = datasets_dir / 'combined_tda_sd'
+    if dst.exists():
+        return True
+    candidates = sorted(
+        results_dir.glob(f'*_s{strength}_g{guidance}/generated_images_backup/combined_tda_sd'))
+    if not candidates:
+        print(f"  WARNING: no CDA backup found for s{strength}_g{guidance}; "
+              f"config comparison will run on baseline only.")
+        return False
+    src = candidates[-1]
+    shutil.copytree(str(src), str(dst))
+    print(f"  Restored CDA for config comparison from: {src}")
+    return True
+
+
+def config_comparison_done_with_cda() -> bool:
+    """True if training_config_comparison already includes combined_tda_sd (CDA)."""
+    csv = results_dir / 'training_config_comparison' / 'all_configs_comparison.csv'
+    if not csv.exists():
+        return False
+    try:
+        df = pd.read_csv(csv)
+        return 'combined_tda_sd' in set(df.get('Dataset', pd.Series(dtype=str)).astype(str))
+    except Exception:
+        return False
 
 
 def write_config(run_dir: Path, strength: float, guidance: float, extras=None):
@@ -528,6 +568,35 @@ if all_summary_rows:
         print(f"  Warning: could not save all_combos_summary.csv: {exc}")
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# PHASE 1-D — Training Configuration Comparison (3 configs × {baseline, CDA})
+#   Runs 06_transfer_learning_comparison.py ONCE, at 15-fold, on baseline AND the
+#   best combo's CDA.  Resumable: skipped if results already include CDA.
+# ═══════════════════════════════════════════════════════════════════════════════
+if args.skip_training_configs:
+    print("\n[SKIP] Training config comparison (--skip_training_configs)")
+elif config_comparison_done_with_cda():
+    print("\n[SKIP] Training config comparison — already done with CDA "
+          "(Results/training_config_comparison/).")
+else:
+    print(f"\n{'=' * 70}")
+    print("PHASE 1-D  —  Training Config Comparison (baseline + CDA, 15 folds)")
+    print(f"{'=' * 70}")
+    # baseline is needed for fold splitting; restore if a previous cleanup removed it.
+    if not (datasets_dir / 'baseline').exists() and _base_backup.exists():
+        shutil.copytree(str(_base_backup), str(datasets_dir / 'baseline'))
+        print("  Restored baseline from _phase0_backup for config comparison")
+
+    cda_restored = restore_cda_for_combo(*best_combo)
+
+    run_step("PHASE 1-D  Training Config Comparison "
+             "(Config 1 vs 2 vs 3, baseline + CDA, 15 folds)",
+             [python_exe, SCRIPT('06_transfer_learning_comparison.py')])
+
+    # Remove the restored CDA so Phase 2 recreates it cleanly from fresh SD.
+    if cda_restored and (datasets_dir / 'combined_tda_sd').exists():
+        shutil.rmtree(datasets_dir / 'combined_tda_sd', ignore_errors=True)
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # PHASE 2 — Sensitivity Analysis: Augmentation Ratio  [R3.8]
 #   "Is the 20-80-80 training ratio heuristic?"
 #   Varies aug_limit ∈ {1,2,3} → 2×/3×/4× augmentation.
@@ -670,7 +739,8 @@ for lim in [1, 2, 3]:
     done = lim in final_sens
     print(f"    aug_limit={lim} ({lim+1}×: 20+{lim*20}+{lim*20}/class)  →  {'✓' if done else '?'}")
 print()
-print("  Next step (if paper revision): run 05_final_comparison.py")
+print("  CDA (cda_x9, 15-fold) is in each combo's metrics_summary.csv;")
+print("  3-config comparison (baseline + CDA) is in Results/training_config_comparison/.")
 print(f"{'=' * 70}")
 print("Done.")
 

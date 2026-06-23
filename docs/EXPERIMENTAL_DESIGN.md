@@ -144,6 +144,20 @@ Implemented in `02_2b_gen_sd_labelonly.py`.
 Three training configurations are compared in `06_transfer_learning_comparison.py`
 to empirically justify the choice of Config 1 as the primary strategy.
 
+> **All main augmentation experiments use Config 1.** Every method in the main
+> comparison (`03_run_experiments.py`: Baseline, TDA, GDA/SD, CDA, MixUp, CutMix,
+> RandAugment, AutoAugment, AugMix, SD label-only) is trained under **Config 1
+> (Transfer Learning + Partial Freezing)** — the model setup is identical across
+> methods; only the data/augmentation differs. The 3-config study then extends
+> **Baseline and CDA** to Config 2 and Config 3. Because Config 1 here is byte-for-byte
+> the same model setup as `_train_eval` in `03_run_experiments.py` (same `pretrained=True`,
+> same freeze of all but `features[-3:]` + classifier, same 15-fold seed), its
+> Baseline/CDA numbers reproduce those of the main comparison.
+>
+> ⚠️ **Partial Freezing freezes the FIRST six blocks (`features[0]`–`features[5]`) and
+> fine-tunes the LAST three (`features[6]`–`features[8]`) + classifier** — it does NOT
+> "freeze the last 3 layers". Use this precise wording in the paper.
+
 | Config | Pretrained | Frozen Layers | Trainable | Script Output |
 |--------|-----------|--------------|-----------|---------------|
 | **Config 1** | ✓ ImageNet | All except last 3 blocks + classifier | ~2.2M / 5.3M | `Config1_PartialFreezing/` |
@@ -159,8 +173,18 @@ to empirically justify the choice of Config 1 as the primary strategy.
 - Config 2 (from scratch) typically underperforms with <100 images/class
 - Config 3 (fine-tune all) can overfit rapidly with 20 images/class and lr=1e-4
 
-**Execution**: Phase 0-D of `07_master_run.py` runs `06_transfer_learning_comparison.py`
-once before the SD grid search. Results in `Results/training_config_comparison/`.
+**Datasets compared**: each of the 3 configs is trained/evaluated on the **baseline**
+dataset (always) **and** the best combo's **CDA** (`combined_tda_sd`, when available).
+
+**Cross-validation**: RepeatedStratifiedKFold (n_splits=5, n_repeats=3 → **15 folds**),
+identical to the main experiments (R3.1/R3.6). Augmented images derived from held-out
+originals are excluded (no leakage); validation uses originals only.
+
+**Execution**: Phase **1-D** of `07_master_run.py` runs `06_transfer_learning_comparison.py`
+once **after** SD/CDA generation (so the CDA dataset exists). The best combo's
+`combined_tda_sd` is restored from its Phase-1 backup for this comparison.
+Results in `Results/training_config_comparison/` (`all_configs_comparison.csv` has a
+`Fold` column: folds 1–15 + AVG + STD, for both `baseline` and `combined_tda_sd`).
 
 ---
 

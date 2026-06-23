@@ -148,11 +148,15 @@ Adds GAN to comparison. Requires `Results/gan_metrics_summary.csv`.
 
 ---
 
-## 05_final_comparison.py
+## 05_final_comparison.py  [LEGACY — superseded]
 ```bash
 python tomato_vs/05_final_comparison.py [--output_dir Results/final]
 ```
-Standalone: Baseline vs Combined(TDA+SD). Requires `Data_ST/`.
+Legacy standalone: Baseline vs Combined(TDA+SD) using the old `Data_ST/` layout and
+**5 fixed trials**. **Superseded** in the revision by `cda_x9` in `03_run_experiments.py`
+(Baseline vs CDA, 15-fold, in the main table) and `06_transfer_learning_comparison.py`
+(Baseline vs CDA × 3 configs, 15-fold). Exits with a redirect if `Data_ST/` is absent.
+Use `07_master_run.py` instead.
 
 ---
 
@@ -160,7 +164,22 @@ Standalone: Baseline vs Combined(TDA+SD). Requires `Data_ST/`.
 ```bash
 python tomato_vs/06_transfer_learning_comparison.py
 ```
-Standalone: Pretrained vs from-scratch. Requires `Data_ST/`.
+Compares **3 training configurations** on EfficientNet-B0 with **RepeatedStratifiedKFold
+(5×3 = 15 folds)** — consistent with the main experiments (R3.1/R3.6):
+- Config 1 = Transfer Learning + Partial Freezing  **[MAIN]**
+- Config 2 = Training from Scratch
+- Config 3 = Fine-tuning All Layers
+
+Reads `datasets/baseline/train/` + `datasets/test/` (always), and
+`datasets/combined_tda_sd/train/` (CDA) **if present** → each config is evaluated on
+**baseline AND CDA**.  Outputs `Results/training_config_comparison/`
+(`all_configs_comparison.csv` with a `Fold` column: folds 1–15 + AVG + STD,
+`config_comparison_baseline.png`, `config_comparison_combined_tda_sd.png`).
+
+> To include CDA when running standalone, first make `datasets/combined_tda_sd/` available
+> (it is created in `07_master_run.py` Phase 1; a copy is kept per combo in
+> `Results/<combo>/generated_images_backup/combined_tda_sd/` — copy it into `datasets/`).
+> Inside `07_master_run.py`/`08_master_run_hotfix.py` this restore is automatic (Phase 1-D).
 
 ---
 

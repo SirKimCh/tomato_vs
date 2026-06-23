@@ -80,6 +80,12 @@ tomato_vs/Results/
 > **Combo tốt nhất**: `s0.35_g7.5` → Acc SD=91.03%, tốt nhất trong 9 combo.
 > Dùng folder `20260621_034627_s0.35_g7.5/` làm số liệu **chính** cho bài.
 
+> **Bổ sung (24/06/2026)** — 2 thư mục liên quan CDA / 3-config:
+> - `20260623_162856_s0.35_g7.5/` — run main **có `cda_x9`** đủ 15 fold (best combo, batch SD mới).
+>   `cda_x9` = 91.52±1.58%. Dùng để lấy số liệu CDA cho Table chính (§6/§13).
+> - `training_config_comparison/` — 3-config comparison. ⚠️ Kết quả hiện tại là **5-trial,
+>   baseline-only** (cũ) → **cần chạy lại** thành 15-fold + CDA (xem §14 Q2).
+
 ---
 
 ## 3. R3.3 & R4.7 — CHẤT LƯỢNG ẢNH SINH (FID / IS / LPIPS)
@@ -208,7 +214,7 @@ Nguồn: `Results/20260621_034627_s0.35_g7.5/metrics_summary.csv` — các dòng
 | Baseline (20 imgs) | 90.44±1.24% | 0.9040±0.0124 | 0.8815 | 0.9861 |
 | TDA×5 | 90.69±1.41% | 0.9059±0.0145 | 0.8850 | 0.9868 |
 | **SD×5 (Gemini)** | **91.03±1.40%** | **0.9097±0.0134** | **0.8890** | **0.9858** |
-| **CDA×9 (TDA+SD)** | *(chạy lại — xem hướng dẫn §14)* | — | — | — |
+| **CDA×9 (TDA+SD)** | **91.52±1.58%** ⁽¹⁾ | **0.9145±0.0159** | **0.8953** | **0.9876** |
 | MixUp | 89.20±1.80% | 0.8912±0.0184 | 0.8669 | 0.9840 |
 | CutMix | 90.05±0.83% | 0.8994±0.0084 | 0.8773 | 0.9875 |
 | **RandAugment** | **91.72±0.85%** | **0.9169±0.0079** | **0.8972** | **0.9886** |
@@ -216,6 +222,14 @@ Nguồn: `Results/20260621_034627_s0.35_g7.5/metrics_summary.csv` — các dòng
 | AugMix | 90.60±0.93% | 0.9058±0.0094 | 0.8830 | 0.9873 |
 | SD Label-Only×5 | 90.89±1.15% | 0.9084±0.0116 | 0.8872 | 0.9847 |
 
+> ⁽¹⁾ **Số liệu CDA×9** lấy từ run nhất quán **`Results/20260623_162856_s0.35_g7.5/`**
+> (đã có `cda_x9` đủ 15 fold, cùng pipeline 03_run_experiments.py với các method khác).
+> Trong run này baseline/TDA/RandAugment khớp với bảng trên (Jun21), riêng **sd_x5 = 90.85%**
+> (khác nhẹ 91.03% vì SD được sinh lại — batch khác). **CDA×9 (91.52%) > SD×5 > TDA×5 > Baseline**,
+> chỉ dưới RandAugment (91.72%). ⚠️ Để có **một bảng chính hoàn toàn nhất quán** (mọi method + CDA
+> cùng 1 batch SD), nên dùng toàn bộ số liệu từ `20260623_162856_s0.35_g7.5/metrics_summary.csv`,
+> hoặc chạy lại best combo một lần (xem §14).
+>
 > **Quan trọng**: RandAugment đạt Acc=91.72% cao nhất, nhưng điều này **không vô hiệu hóa SD**.
 > Lý do SD vẫn có ý nghĩa khoa học:
 > 1. SD tạo ra ảnh **pre-generated** (sử dụng ở inference, không cần GPU runtime)
@@ -447,6 +461,7 @@ Method          | Acc (%)      | F1            | MCC    | AUC    | Note
 Baseline        | 90.44±1.24   | 0.904±0.012   | 0.882  | 0.986  | 20 imgs/class
 TDA×5           | 90.69±1.41   | 0.906±0.014   | 0.885  | 0.987  | Geometric aug
 SD×5 (Ours)     | 91.03±1.40   | 0.910±0.013   | 0.889  | 0.986  | Gemini+SD img2img
+CDA×9 (TDA+SD)  | 91.52±1.58   | 0.914±0.016   | 0.895  | 0.988  | 180/class [run 20260623_162856]
 SD Label-Only×5 | 90.89±1.15   | 0.908±0.012   | 0.887  | 0.985  | Template prompt
 MixUp           | 89.20±1.80   | 0.891±0.018   | 0.867  | 0.984  | Online mix
 CutMix          | 90.05±0.83   | 0.899±0.008   | 0.877  | 0.988  | Online cut-paste
@@ -510,11 +525,14 @@ Multiplier | Train/class | SD Acc    | TDA Acc   | Baseline Acc
 | Vấn đề | File liên quan | Tình trạng |
 |--------|---------------|------------|
 | CDA (combined_tda_sd) thiếu trong pipeline mới | `03_run_experiments.py`, `07_master_run.py` | ✅ **ĐÃ FIX** — `cda_x9` có trong `core_exps`, `create_combined_dataset()` được gọi tự động trong Phase 1-B2 |
-| 3 Training Configs chưa có trong pipeline | `06_transfer_learning_comparison.py`, `07_master_run.py` | ✅ **ĐÃ FIX** — Phase 0-D gọi `06_transfer_learning_comparison.py` |
+| 3 Training Configs chưa có trong pipeline | `06_transfer_learning_comparison.py`, `07_master_run.py` | ✅ **ĐÃ FIX** — `07_master_run.py` gọi `06_transfer_learning_comparison.py` (nay ở **Phase 1-D**, xem dòng dưới) |
 | `cda_x9` thiếu trong COLOR_MAP/LABEL_MAP của visualization | `03_3_analyze_results.py` | ✅ **ĐÃ FIX (23/06/2026)** |
 | Tiêu đề hardcode "5 Trials" trong confusion matrix | `04_visualize_results.py` | ✅ **ĐÃ FIX (23/06/2026)** — dynamic dựa vào số fold thực tế |
 | `08_master_run_hotfix.py` thiếu CDA (không tạo `combined_tda_sd`, cleanup không xóa) | `08_master_run_hotfix.py` | ✅ **ĐÃ FIX (23/06/2026)** — thêm `create_combined_dataset()`, cập nhật cleanup và backup |
 | `06_transfer_learning_comparison.py` không dùng AMP | `06_transfer_learning_comparison.py` | ✅ **ĐÃ FIX (23/06/2026)** — thêm AMP + NUM_WORKERS nhất quán với `03_run_experiments.py` |
+| **Config comparison chạy SAI THỨ TỰ: Phase 0-D gọi 06 TRƯỚC khi `combined_tda_sd` được tạo (Phase 1-B2) → 3-config chỉ có baseline, KHÔNG có CDA** | `07_master_run.py` | ✅ **ĐÃ FIX (24/06/2026)** — chuyển sang **Phase 1-D** (sau khi sinh SD/CDA), tự restore CDA của best combo từ backup, chạy 1 lần |
+| **Kết quả `training_config_comparison/` cũ dùng 5 fixed trials, không phải 15-fold** | kết quả trong `Results/` | ⚠️ **CẦN CHẠY LẠI** — code 06 hiện đã là 15-fold; xóa `Results/training_config_comparison/` cũ và chạy lại (xem §14 cuối) |
+| `08_master_run_hotfix.py` không chạy 3-config comparison | `08_master_run_hotfix.py` | ✅ **ĐÃ FIX (24/06/2026)** — thêm Phase 1-D (restore CDA best combo, 15-fold), tự bỏ qua nếu đã có CDA |
 
 ### Q1: Không thấy kết quả CDA (Combined Data Augmentation = TDA + SD kết hợp)
 
@@ -526,7 +544,8 @@ Multiplier | Train/class | SD Acc    | TDA Acc   | Baseline Acc
 | Đường dẫn | `Data_ST/combined_tda_sd/` (sai) | N/A | `datasets/combined_tda_sd/train/` ✓ |
 | Tạo dataset | `06_..` dùng merge thủ công | N/A | `create_combined_dataset()` trong `07_master_run.py` Phase 1-B2 + `08_master_run_hotfix.py` ✓ |
 | Cleanup/Backup | N/A | N/A | `cleanup_sd_only()` + `backup_datasets()` đều include `combined_tda_sd` ✓ |
-| Kết quả | Chạy với Data_ST | Không có | **Cần chạy lại** |
+| Kết quả (main, 10 method) | Chạy với Data_ST | Không có | ✅ **ĐÃ CÓ** trong `Results/20260623_162856_s0.35_g7.5/` — `cda_x9` đủ 15 fold (91.52±1.58%) |
+| Kết quả (trong 3-config) | Chạy với Data_ST | Không có | ⚠️ **CẦN CHẠY LẠI** — xem Q2 |
 
 **Cấu trúc CDA ×9**:
 ```
@@ -547,24 +566,30 @@ combined_tda_sd/train/<class>/
 - Với aug_limit=4: đếm TDA và SD RIÊNG BIỆT → 4 TDA + 4 SD = 8 aug per original ✓
 - Không có type nào bị "đuổi" do sort alphabetically (_aug < _sd) ✓
 
-**Cách chạy lại để lấy kết quả CDA**:
+**Trạng thái (24/06/2026)**: Kết quả CDA cho main comparison (10 method) **ĐÃ CÓ** trong
+`Results/20260623_162856_s0.35_g7.5/metrics_summary.csv` — `cda_x9` đủ 15 fold:
+**91.52±1.58% Acc, F1=0.914, MCC=0.895, AUC=0.988**. Lưu ý trong run này `sd_x5=90.85%`
+(SD sinh lại batch khác; baseline/TDA/RandAugment khớp với bảng Jun21).
+
+**Cách lấy số liệu CDA nhất quán cho bài** (chọn 1):
 ```bash
-# Option 1: Chạy toàn bộ lại (khuyến nghị nếu có thời gian)
-Remove-Item -Recurse -Force tomato_vs/Results/*
-python tomato_vs/07_master_run.py
+# Option A (KHUYẾN NGHỊ — đã có sẵn): dùng nguyên run 20260623_162856_s0.35_g7.5
+#   làm bảng chính → mọi method + CDA cùng 1 batch SD, hoàn toàn nhất quán.
+#   Chỉ cần đọc Results/20260623_162856_s0.35_g7.5/metrics_summary.csv
 
-# Option 2: Chạy NHANH chỉ combo tốt nhất (s0.35, g7.5) để lấy CDA
+# Option B: chạy lại NHANH best combo 1 lần (nếu muốn batch SD mới + image quality):
 python tomato_vs/07_master_run.py --mode one --strength 0.35 --guidance 7.5 \
-  --skip_image_quality --skip_diversity --skip_sensitivity --skip_training_configs
+  --skip_sensitivity --skip_training_configs
+#   → tạo run mới có đủ 10 method (gồm cda_x9) + FID/LPIPS/diversity, cùng 1 batch.
 
-# Option 3: Dùng kết quả CDA từ bản gốc (nếu Data_ST còn tồn tại)
-# Kiểm tra: dir tomato_vs/Data_ST/
+# Option C: chạy toàn bộ lại (24–36h): python tomato_vs/07_master_run.py
 ```
 
 **Số liệu CDA cần thêm vào bài**:
-- Thêm 1 dòng `CDA ×9` vào Table chính
-- Kỳ vọng: CDA > SD×5 và > TDA×5 (vì nhiều data hơn và đa dạng hơn)
-- Kỳ vọng: CDA ≈ RandAugment hoặc cao hơn (vì CDA có domain-specific content từ SD)
+- Thêm 1 dòng `CDA ×9` vào Table chính (số liệu ở §6 / §13)
+- Kết quả thực tế: **CDA×9 (91.52%) > SD×5 > TDA×5 > Baseline**, chỉ dưới RandAugment (91.72%)
+- Diễn giải: kết hợp TDA+SD cho hiệu quả **additive** (nhiều data + đa dạng hơn), gần ngang
+  online augmentation mạnh nhất nhưng có thêm domain-specific content từ SD.
 
 ---
 
@@ -574,55 +599,113 @@ python tomato_vs/07_master_run.py --mode one --strength 0.35 --guidance 7.5 \
 1. Đường dẫn sai: `Data_ST` thay vì `datasets`
 2. Chưa được gọi từ `07_master_run.py`
 
-| Config | Script | Tình trạng trước fix | Sau fix |
-|--------|--------|---------------------|---------|
-| Config 1: Transfer Learning + Partial Freezing | `03_run_experiments.py` | ✓ Đã có, kết quả đầy đủ | ✓ Không thay đổi |
-| Config 2: Training from Scratch | `06_transfer_learning_comparison.py` | ✗ Path sai, không được gọi | ✓ Fixed path + gọi từ Phase 0-D |
-| Config 3: Fine-tuning All Layers | `06_transfer_learning_comparison.py` | ✗ Path sai, không được gọi | ✓ Fixed path + gọi từ Phase 0-D |
+**Hai vấn đề CÒN LẠI (phát hiện 24/06/2026)** với kết quả 3-config hiện có
+(`Results/training_config_comparison/` — sinh từ bản code cũ):
+1. **Dùng 5 fixed trials, KHÔNG phải 15-fold** (file đặt tên `_t1..t5`, cột `Trial` 1–5).
+   Code 06 hiện tại ĐÃ là 15-fold (cột `Fold` 1–15) nhưng kết quả cũ chưa được sinh lại.
+2. **Chỉ có `baseline`, KHÔNG có CDA** (`combined_tda_sd`). Nguyên nhân: `07_master_run.py`
+   gọi 06 ở **Phase 0-D** — TRƯỚC khi CDA được tạo (Phase 1-B2) → 06 chỉ thấy baseline.
 
-**Các thay đổi đã thực hiện (23/06/2026)**:
-1. `06_transfer_learning_comparison.py`: Đổi `Data_ST` → `datasets`, thêm Config 1 (partial freezing) vào script, xóa `create_test_set()`, thêm argparse, output chuẩn
-2. `07_master_run.py`: Thêm Phase 0-D gọi `06_transfer_learning_comparison.py` với flag `--skip_training_configs`
+| Config | Script | Trạng thái kết quả hiện có | Sau fix code |
+|--------|--------|---------------------------|--------------|
+| Config 1: Transfer Learning + Partial Freezing | `06_…` (và `03_run_experiments.py` cho main) | ✓ Có, nhưng 5 trials + baseline | ✓ Code 15-fold + baseline & CDA |
+| Config 2: Training from Scratch | `06_transfer_learning_comparison.py` | ✓ Có, nhưng 5 trials + baseline | ✓ Code 15-fold + baseline & CDA |
+| Config 3: Fine-tuning All Layers | `06_transfer_learning_comparison.py` | ✓ Có, nhưng 5 trials + baseline | ✓ Code 15-fold + baseline & CDA |
 
-**Cách chạy để lấy kết quả 3 configs**:
+**Các thay đổi code đã thực hiện**:
+1. (23/06) `06_transfer_learning_comparison.py`: `Data_ST` → `datasets`; thêm Config 1; dùng
+   **RepeatedStratifiedKFold 5×3 = 15 fold**; chạy trên `baseline` + `combined_tda_sd` (nếu có).
+2. (24/06) `07_master_run.py`: chuyển gọi 06 từ **Phase 0-D → Phase 1-D** (sau khi sinh SD/CDA);
+   tự **restore CDA của best combo** từ backup rồi chạy 06 → 3-config có cả baseline & CDA.
+3. (24/06) `08_master_run_hotfix.py`: thêm Phase 1-D tương tự (resumable).
+
+**⚠️ CẦN CHẠY LẠI 3-config** (kết quả cũ stale). Cách chạy (chọn 1):
 ```bash
-# Standalone (nhanh ~30 phút, chỉ cần baseline data):
-python tomato_vs/06_transfer_learning_comparison.py
+# B1 — XÓA kết quả 3-config cũ (5-trial, baseline-only):
+Remove-Item -Recurse -Force tomato_vs/Results/training_config_comparison
 
-# Hoặc qua master run:
-python tomato_vs/07_master_run.py --skip_sd --skip_label_sd --skip_image_quality \
-  --skip_diversity --skip_sensitivity --skip_cda
-# → sẽ chạy Phase 0-D (training configs) và bỏ qua tất cả SD-related steps
+# Cách 1 (KHUYẾN NGHỊ — standalone, có CDA): restore CDA của best combo rồi chạy 06
+#   (combined_tda_sd backup nằm trong run best combo)
+Copy-Item -Recurse `
+  "tomato_vs/Results/20260623_162856_s0.35_g7.5/generated_images_backup/combined_tda_sd" `
+  "tomato_vs/datasets/combined_tda_sd"
+python tomato_vs/06_transfer_learning_comparison.py
+Remove-Item -Recurse -Force tomato_vs/datasets/combined_tda_sd   # dọn sau khi xong
+
+# Cách 2: qua master run (tự động restore CDA ở Phase 1-D)
+python tomato_vs/07_master_run.py --mode one --strength 0.35 --guidance 7.5 \
+  --skip_image_quality --skip_diversity --skip_sensitivity
+#   → chạy lại best combo (gồm cda_x9) + Phase 1-D (3 config × baseline & CDA × 15 fold)
 ```
 
-**Output**:
+**Output mong đợi (sau khi sửa)**:
 ```
 Results/training_config_comparison/
-├── all_configs_comparison.csv          ← So sánh tất cả 3 configs
-├── Config1_PartialFreezing/
-│   ├── metrics_summary.csv             ← Acc/F1/MCC/AUC, 5 trials + AVG + STD
-│   └── cm_aggregate_baseline.png
+├── all_configs_comparison.csv          ← 3 configs × {baseline, combined_tda_sd}
+│                                          cột Fold: 1–15 + AVG + STD (KHÔNG còn Trial 1–5)
+├── config_comparison_baseline.png
+├── config_comparison_combined_tda_sd.png   ← MỚI (CDA)
+├── Config1_PartialFreezing/  (cm_aggregate_baseline.png, cm_aggregate_combined_tda_sd.png, …)
 ├── Config2_FromScratch/
-│   └── metrics_summary.csv
 └── Config3_FineTuneAll/
-    └── metrics_summary.csv
 ```
 
-**Số liệu cần đưa vào bài** (sau khi chạy):
-- Bảng: "Comparison of Training Configurations (5 trials, baseline dataset)"
-- Kết quả đọc từ `Results/training_config_comparison/all_configs_comparison.csv`
-- Kỳ vọng: Config 1 ≥ Config 3 > Config 2 (partial freezing tốt nhất cho few-shot)
+**Số liệu cần đưa vào bài** (sau khi chạy lại):
+- Bảng: "Comparison of Training Configurations (**15-fold**, baseline **and CDA** datasets)"
+- Kết quả đọc từ `Results/training_config_comparison/all_configs_comparison.csv` (dòng `AVG`/`STD`)
+- Kỳ vọng: Config 1 ≥ Config 3 > Config 2 (partial freezing tốt nhất cho few-shot, trên cả 2 dataset)
 
 ---
 
-### Kết luận hành động cần làm
+### Q3: Cấu hình model dùng cho từng phần (xác nhận với người viết bài, 24/06/2026)
 
-| Việc cần làm | Thời gian ước tính | Lệnh |
-|-------------|-------------------|------|
-| **[URGENT]** Chạy training config comparison | ~30–45 phút | `python tomato_vs/06_transfer_learning_comparison.py` |
-| **[URGENT]** Chạy lại best combo với CDA | ~3–4 giờ | `python tomato_vs/07_master_run.py --mode one --strength 0.35 --guidance 7.5 --skip_image_quality --skip_diversity --skip_sensitivity --skip_training_configs` |
-| [Optional] Chạy toàn bộ lại | ~24–36 giờ | `python tomato_vs/07_master_run.py` |
+Đây là 4 câu hỏi về training config — đã kiểm tra trực tiếp trong code, **đối chiếu bài gốc PDF**.
 
-> **Lưu ý về kết quả hiện có**: 9 combo SD + sensitivity analysis **ĐÃ HOÀN CHỈNH** trong `Results/`.
-> CDA và 3 training configs là 2 phần bổ sung, không ảnh hưởng đến kết quả SD đã có.
-> Có thể thêm CDA vào Table chính bài báo sau khi chạy best combo.
+**(1) Baseline, GDA(sd_x5), MixUp, CutMix, RandAugment, AutoAugment, AugMix, sd_labelonly_x5
+(và TDA, CDA) trong bảng so sánh chính chạy với cấu hình nào?**
+→ **TẤT CẢ chạy CHUNG một cấu hình = Training Config 1 (Transfer Learning + Partial Freezing)**:
+`pretrained=True`, **đóng băng 6 block đầu** `features[0]–features[5]` (~66.7%), **fine-tune 3 block
+cuối** `features[6]–features[8]` + classifier (~2.2M/5.3M tham số train được). Nguồn:
+`03_run_experiments.py` hàm `_train_eval` (dòng 355–361) — chỉ có **MỘT** chỗ tạo model, KHÔNG có
+nhánh nào đổi config theo method. Khác biệt giữa các method **chỉ ở dữ liệu/augmentation**, model y hệt.
+
+> ⚠️ **Lưu ý thuật ngữ (quan trọng khi viết bài)**: Partial Freezing **KHÔNG phải "đóng băng 3 lớp
+> cuối"**. Thực tế **đóng băng 6 block ĐẦU và fine-tune 3 block CUỐI + classifier**. Câu 3 viết
+> "đóng băng 3 lớp cuối" là **ngược** — cần sửa lại khi viết để khớp code & bài gốc
+> (PDF trang 13: "first six blocks … entirely frozen … final three blocks … are fine-tuned").
+
+**(4) Đang chạy "giống mô hình ban đầu" hay theo Training Config 1?**
+→ **Theo Training Config 1** (đồng nhất cho mọi method). Đây cũng chính là cấu hình "mô hình ban đầu"
+của bài gốc cho phần so sánh augmentation. Vì `06`'s **Config1_PartialFreezing GIỐNG HỆT** block model
+của `03` (cùng `pretrained=True` + freeze trừ `features[-3:]` + classifier, cùng 15-fold seed 42),
+nên số Baseline/CDA ở Config 1 trong `06` sẽ **trùng** với Baseline/CDA của bảng chính `03` → nhất quán.
+
+**(2) & (3) Quy trình 2 bước (đúng như mô tả người viết bài):**
+- Bước 1 — so sánh augmentation: tất cả method × **Config 1** × 15-fold (`03_run_experiments.py`).
+- Bước 2 — chọn siêu tham số SD tốt nhất = **GDA 2 = (Strength 0.35, Guidance 7.5)** (gọi là
+  "Config 2" trong câu hỏi → ý là combo SD số 2, KHÔNG phải training Config 2).
+- Bước 3 — chia **3 training config** huấn luyện trên **Baseline & CDA** (`06_transfer_learning_comparison.py`):
+  - **Config 1**: pretrained=True, freeze trừ `features[-3:]`+classifier (Partial Freezing) ✓
+  - **Config 2**: `pretrained=False`, no freezing (From Scratch) ✓
+  - **Config 3**: `pretrained=True`, no freezing (Fine-tune All) ✓
+  Khớp chính xác câu 3 (trừ cách diễn đạt "đóng băng 3 lớp cuối" ở trên).
+
+**Tóm lại**: thiết kế hiện tại **ĐÚNG** với ý người viết bài và bài gốc. **Không cần sửa code.**
+Phần duy nhất cần chạy lại vẫn là **3-config comparison** (15-fold + CDA) như Q2.
+
+---
+
+### Kết luận hành động cần làm (cập nhật 24/06/2026)
+
+| # | Việc cần làm | Trạng thái | Lệnh / nguồn |
+|---|-------------|-----------|--------------|
+| 1 | **CDA trong main comparison (10 method)** | ✅ **ĐÃ CÓ** (15-fold) | đọc `Results/20260623_162856_s0.35_g7.5/metrics_summary.csv` (`cda_x9` = 91.52±1.58%) |
+| 2 | **[CẦN CHẠY LẠI] 3-config comparison (15-fold + CDA)** | ⚠️ kết quả cũ là 5-trial, baseline-only | xóa `Results/training_config_comparison/`, rồi chạy theo Q2 — Cách 1 (standalone, ~30–60′) hoặc Cách 2 (master run) |
+| 3 | [Tùy chọn] Best combo nhất quán có image quality | ⏳ nếu muốn 1 batch SD duy nhất | `python tomato_vs/07_master_run.py --mode one --strength 0.35 --guidance 7.5 --skip_sensitivity` (~4–5h, gồm Phase 1-D) |
+| 4 | [Tùy chọn] Chạy toàn bộ lại | ⏳ | `python tomato_vs/07_master_run.py` (~24–36h) |
+
+> **Tóm tắt phần CẦN CHẠY LẠI**: chỉ có **3-config comparison** là bắt buộc chạy lại
+> (để có 15-fold + CDA thay cho 5-trial + baseline-only). Mọi kết quả khác (9 combo SD,
+> sensitivity, và cda_x9 main cho best combo) **đã đầy đủ** trong `Results/`.
+> Sau khi sửa code (Phase 0-D → Phase 1-D), một lần `07_master_run.py` mới sẽ tự tạo
+> 3-config đúng (baseline + CDA, 15-fold) — không lặp lại lỗi cũ.

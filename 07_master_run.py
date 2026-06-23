@@ -23,11 +23,13 @@ Additional experiments (re-added from original paper):
                Automatically created after each SD generation; tested alongside
                individual methods.  Answers: "does TDA+SD combination outperform either?"
   3 Training : Config comparison (06_transfer_learning_comparison.py) run ONCE in
-  Configs      Phase 0-D:
+  Configs      Phase 1-D (after SD/CDA generation), at 15-fold on baseline + CDA:
                Config 1 = Transfer Learning + Partial Freezing  [MAIN]
                Config 2 = Training from Scratch
                Config 3 = Fine-tuning All Layers
                Justifies why Config 1 is used for all main experiments.
+               Runs on baseline AND the best combo's combined_tda_sd (CDA),
+               both with RepeatedStratifiedKFold (5×3 = 15 folds).
 
 No interactive input — all parameters via command-line arguments.
 
@@ -245,6 +247,33 @@ def create_combined_dataset():
     return True
 
 
+def restore_cda_for_combo(strength, guidance):
+    """
+    Make datasets/combined_tda_sd available for the training-config comparison.
+
+    During Phase 1 each combo's CDA is created in-place then cleaned up
+    (cleanup_sd_only) at the end of the combo, but a copy is kept in
+    run_dir/generated_images_backup/combined_tda_sd.  This restores the
+    best combo's backed-up CDA so 06_transfer_learning_comparison.py can
+    compare the 3 training configs on baseline AND CDA (both 15-fold).
+
+    Returns True if datasets/combined_tda_sd is present afterwards.
+    """
+    dst = datasets_dir / 'combined_tda_sd'
+    if dst.exists():
+        return True
+    candidates = sorted(
+        results_dir.glob(f'*_s{strength}_g{guidance}/generated_images_backup/combined_tda_sd'))
+    if not candidates:
+        print(f"  WARNING: no CDA backup found for s{strength}_g{guidance}; "
+              f"config comparison will run on baseline only.")
+        return False
+    src = candidates[-1]   # newest matching backup
+    shutil.copytree(str(src), str(dst))
+    print(f"  Restored CDA for config comparison from: {src}")
+    return True
+
+
 def write_config(run_dir, strength, guidance, extras=None):
     cfg = {
         'timestamp':    datetime.now().isoformat(),
@@ -268,7 +297,7 @@ print(f"  Mode        : {args.mode}  ({'all 9 combos' if args.mode=='full' else 
 print(f"  Train count : {args.train_count}  |  Test count : {args.test_count}")
 print(f"  K-Fold      : {'RepeatedStratifiedKFold (5×3=15 folds)' if not args.no_kfold else '5 fixed trials  [matches submitted paper]'}")
 print(f"  CDA (×9)    : {'ENABLED — combined_tda_sd created each combo' if not args.skip_cda else 'SKIPPED (--skip_cda)'}")
-print(f"  3 Configs   : {'ENABLED — Phase 0-D training config comparison' if not args.skip_training_configs else 'SKIPPED (--skip_training_configs)'}")
+print(f"  3 Configs   : {'ENABLED — Phase 1-D config comparison (baseline + CDA, 15 folds)' if not args.skip_training_configs else 'SKIPPED (--skip_training_configs)'}")
 print(f"  Combos      : {combos}")
 print("="*70)
 
@@ -309,14 +338,11 @@ for src, dst in [(datasets_dir / 'tda_x5',          _tda_backup),
         shutil.copytree(str(src), str(dst))
         print(f"  Phase-0 backed up: {src.name}")
 
-# ── PHASE 0-D: Training Configuration Comparison (one-time, standalone) ──────
-#   Runs 3 configs × baseline dataset × 5 trials to justify Config 1 choice.
-#   Uses only baseline (no SD needed). Results → Results/training_config_comparison/
-if not args.skip_training_configs:
-    run_step("PHASE 0-D  Training Config Comparison (Config 1 vs 2 vs 3)",
-             [python_exe, SCRIPT('06_transfer_learning_comparison.py')])
-else:
-    print("\n[SKIP] Training config comparison")
+# NOTE: The 3-config training comparison (06_transfer_learning_comparison.py) is
+#   intentionally NOT run here.  It needs combined_tda_sd (CDA) to compare the
+#   training configs on baseline AND CDA, and CDA only exists after SD generation
+#   (Phase 1).  It is therefore run in PHASE 1-D below, once, on the best combo's
+#   CDA, at 15-fold (consistent with R3.1/R3.6).
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PHASE 1 — SD Grid Search  (9 combinations)
@@ -465,6 +491,35 @@ print(f"{'='*70}")
 if best_combo is None:
     best_combo = (0.35, 7.5)   # safe fallback
     print(f"  (no valid results found; using default best_combo={best_combo})")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PHASE 1-D — Training Configuration Comparison (3 configs × {baseline, CDA})
+#   Runs 06_transfer_learning_comparison.py ONCE, at 15-fold (RepeatedStratifiedKFold
+#   5×3), on the baseline dataset AND the best combo's CDA (combined_tda_sd).
+#   Justifies Config 1 (Transfer Learning + Partial Freezing) as the primary
+#   training strategy, consistently with the main experiments (R3.1 / R3.6).
+#   (Was Phase 0-D; moved here because CDA only exists after SD generation.)
+# ═══════════════════════════════════════════════════════════════════════════════
+if not args.skip_training_configs:
+    # baseline is needed for fold splitting; it is never removed by cleanup_sd_only,
+    # but restore defensively in case the user pruned datasets between phases.
+    if not (datasets_dir / 'baseline').exists() and _base_backup.exists():
+        shutil.copytree(str(_base_backup), str(datasets_dir / 'baseline'))
+        print("  Restored baseline from _phase0_backup for config comparison")
+
+    cda_restored = False
+    if not args.skip_cda:
+        cda_restored = restore_cda_for_combo(*best_combo)
+
+    run_step("PHASE 1-D  Training Config Comparison "
+             "(Config 1 vs 2 vs 3, baseline + CDA, 15 folds)",
+             [python_exe, SCRIPT('06_transfer_learning_comparison.py')])
+
+    # Remove the restored CDA so Phase 2 recreates it cleanly from fresh SD.
+    if cda_restored and (datasets_dir / 'combined_tda_sd').exists():
+        shutil.rmtree(datasets_dir / 'combined_tda_sd', ignore_errors=True)
+else:
+    print("\n[SKIP] Training config comparison (--skip_training_configs)")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PHASE 2 — Sensitivity Analysis: Augmentation Ratio  [R3.8]

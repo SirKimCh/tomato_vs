@@ -370,6 +370,26 @@ def run_experiment(dataset_dir, exp_name, seed, trial):
     return acc, prec, rec, f1, mcc, auc, cm
 
 if __name__ == '__main__':
+    # ─────────────────────────────────────────────────────────────────────────
+    # LEGACY NOTICE — superseded by the main pipeline.
+    #   This standalone (Baseline vs Combined TDA+SD) uses the OLD `Data_ST/`
+    #   convention and 5 fixed trials.  In the reviewer revision it is REPLACED by:
+    #     • cda_x9 in 03_run_experiments.py (Baseline vs CDA, 15-fold) — main table
+    #     • 06_transfer_learning_comparison.py (Baseline vs CDA × 3 configs, 15-fold)
+    #   Use 07_master_run.py instead.  Kept only for reproducing the original
+    #   submitted-paper experiment if a legacy Data_ST/ directory still exists.
+    # ─────────────────────────────────────────────────────────────────────────
+    print("=" * 70)
+    print("  [LEGACY] 05_final_comparison.py uses Data_ST/ + 5 fixed trials.")
+    print("  For the revision use 07_master_run.py (cda_x9 = Baseline vs CDA, 15-fold).")
+    print("=" * 70)
+    if not data_st_dir.exists():
+        print(f"\n  Data_ST/ not found at {data_st_dir}.")
+        print("  This legacy script needs the old Data_ST/ layout.")
+        print("  → The current pipeline stores data in datasets/ and reports CDA as")
+        print("    'cda_x9' (15-fold) — run: python tomato_vs/07_master_run.py")
+        sys.exit(1)
+
     print("=" * 60)
     print("STEP 1: Creating Test Set")
     print("=" * 60)
