@@ -577,12 +577,12 @@ combined_tda_sd/train/<class>/
 #   làm bảng chính → mọi method + CDA cùng 1 batch SD, hoàn toàn nhất quán.
 #   Chỉ cần đọc Results/20260623_162856_s0.35_g7.5/metrics_summary.csv
 
-# Option B: chạy lại NHANH best combo 1 lần (nếu muốn batch SD mới + image quality):
-python tomato_vs/07_master_run.py --mode one --strength 0.35 --guidance 7.5 \
-  --skip_sensitivity --skip_training_configs
-#   → tạo run mới có đủ 10 method (gồm cda_x9) + FID/LPIPS/diversity, cùng 1 batch.
+# Option B (NHẤT QUÁN HOÀN TOÀN — khuyến nghị khi chạy lại): best combo 1 lần, GỒM cả 3-config:
+python tomato_vs/07_master_run.py --mode one --strength 0.35 --guidance 7.5 --skip_sensitivity
+#   → run mới có đủ 10 method (gồm cda_x9) + FID/LPIPS/diversity + Phase 1-D (3-config baseline & CDA,
+#     15-fold), tất cả cùng 1 batch SD. KHÔNG ghi đè all_combos_summary.csv (ghi file *_one_*).
 
-# Option C: chạy toàn bộ lại (24–36h): python tomato_vs/07_master_run.py
+# Option C: chạy toàn bộ 9 combo lại (rất lâu trên GPU 6GB): python tomato_vs/07_master_run.py
 ```
 
 **Số liệu CDA cần thêm vào bài**:
@@ -690,8 +690,48 @@ nên số Baseline/CDA ở Config 1 trong `06` sẽ **trùng** với Baseline/CD
   - **Config 3**: `pretrained=True`, no freezing (Fine-tune All) ✓
   Khớp chính xác câu 3 (trừ cách diễn đạt "đóng băng 3 lớp cuối" ở trên).
 
-**Tóm lại**: thiết kế hiện tại **ĐÚNG** với ý người viết bài và bài gốc. **Không cần sửa code.**
+**Tóm lại**: thiết kế hiện tại **ĐÚNG** với ý người viết bài. **Không cần sửa code.**
 Phần duy nhất cần chạy lại vẫn là **3-config comparison** (15-fold + CDA) như Q2.
+⚠️ Xem thêm Q4 về việc bản nộp chạy augmentation dưới Fine-Tune All (không phải Config 1).
+
+---
+
+### Q4: Vì sao baseline ở bản nộp khác nhau? (90.48 vs 92.52) — augmentation comparison KHÔNG chạy dưới Config 1
+
+**Người viết bài đúng.** Đối chiếu Table 3 của bản nộp (PDF):
+
+| Phần (baseline Acc) | Bản nộp (lr=1e-3, 5 runs) | Bản revision (lr=1e-4) |
+|---|---|---|
+| Augmentation comparison (Baseline) | **90.48 ±1.42** | 90.41 (15-fold, = Config 1) |
+| Config 1 — Partial Freezing | **92.52 ±0.73** | 90.56 (stale 5-trial) / ~90.4 (15-fold) |
+| Config 2 — From Scratch | 45.16 ±23.53 | 47.72 |
+| Config 3 — Fine-Tune All | **90.64 ±1.42** | 92.52 (stale 5-trial) |
+
+**Phát hiện 1 — bản nộp chạy augmentation dưới Fine-Tune All (Config 3), không phải Config 1:**
+phần augmentation comparison baseline (**90.48 ±1.42**) trùng **cả mean lẫn std** với
+**Config 3 Fine-Tune All (90.64 ±1.42)** — std giống hệt `1.42`, khác hẳn Config 1 (`±0.73`).
+→ Bản nộp **không nhất quán**: phần so sánh augmentation dùng Fine-Tune All, còn phần kết luận lại
+khuyến nghị Partial Freezing. Đây chính là điều người viết bài nhận ra.
+
+**Phát hiện 2 — bản revision đã làm CHO NHẤT QUÁN:** mọi method trong `03_run_experiments.py`
+chạy dưới **Config 1 (Partial Freezing)** → baseline ≈ 90.4; và Config 1 trong `06` cũng ≈ 90.4
+(khớp nhau). Tức revision đã sửa sự không nhất quán của bản nộp.
+
+**Phát hiện 3 (QUAN TRỌNG) — đổi lr=1e-3 → 1e-4 đã ĐẢO thứ hạng cấu hình:**
+- Bản nộp (lr=1e-3): **Partial Freezing (92.52) > Fine-Tune All (90.64)** → Partial thắng.
+- Revision (lr=1e-4): **Fine-Tune All (92.52) > Partial Freezing (90.56)** → Fine-Tune All thắng.
+- Nhưng với **CDA** thì 2 cấu hình gần như NGANG nhau (bản nộp: Config1 CDA=93.32 ≈ Config3 CDA=93.20).
+
+**Hệ quả cho bài & lựa chọn cần quyết (tác giả quyết định):**
+- (A) **Giữ revision** (main = Config 1, lr=1e-4): nhất quán nội bộ. Nhưng phải báo cáo trung thực rằng
+  trên baseline, Fine-Tune All nhỉnh hơn Partial Freezing; lý do chọn Partial Freezing = **hiệu quả
+  tham số** (chỉ ~2.2M/5.3M train) và **với CDA thì gần như ngang**. ⇒ Chỉ cần chạy lại 3-config (như Q2).
+- (B) **Đổi main sang Config 3 (Fine-Tune All)** để khớp "chọn cấu hình tốt nhất ở lr=1e-4": phải
+  **train lại TOÀN BỘ** main comparison dưới Config 3 (nặng) và mâu thuẫn thông điệp "partial freezing" của bài.
+- (C) **Quay về lr=1e-3** (như bản nộp): Partial Freezing tốt nhất trở lại, khớp thông điệp gốc, nhưng
+  hủy "scientific correction" về lr và phải **train lại toàn bộ** dưới lr=1e-3.
+
+→ **Khuyến nghị: (A)** — ít rủi ro nhất, nhất quán, và CDA (đóng góp chính của bài) vẫn mạnh ở mọi cấu hình.
 
 ---
 

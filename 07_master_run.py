@@ -639,9 +639,15 @@ print(f"{'='*70}")
 
 if all_summary_rows:
     try:
-        pd.DataFrame(all_summary_rows).to_csv(
-            results_dir / 'all_combos_summary.csv', index=False)
-        print(f"\nAll-combos summary: {results_dir / 'all_combos_summary.csv'}")
+        # In --mode one, do NOT clobber an existing multi-combo all_combos_summary.csv
+        # (it would be overwritten with a single row). Write a combo-specific file instead.
+        if args.mode == 'one':
+            s_one, g_one = combos[0]
+            summary_path = results_dir / f'all_combos_summary_one_s{s_one}_g{g_one}.csv'
+        else:
+            summary_path = results_dir / 'all_combos_summary.csv'
+        pd.DataFrame(all_summary_rows).to_csv(summary_path, index=False)
+        print(f"\nAll-combos summary: {summary_path}")
     except Exception as e:
         print(f"  Summary CSV error: {e}")
 
