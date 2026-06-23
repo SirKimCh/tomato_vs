@@ -17,12 +17,25 @@ This study benchmarks **Stable Diffusion img2img** as a data augmentation techni
 | 1 | **Baseline** | No augmentation | 20 orig/class |
 | 2 | **TDA ×5** | Flip + Rotate + ColorJitter (pre-generated) | 100/class |
 | 3 | **SD ×5 (LLM)** | Stable Diffusion img2img + Gemini 2.5 Flash prompts | 100/class |
-| 4 | **MixUp** | Online convex combination of image pairs | 20 orig/class |
-| 5 | **CutMix** | Online rectangular region swapping | 20 orig/class |
-| 6 | **RandAugment ×5** | Pre-generated RandAugment policy | 100/class |
-| 7 | **AutoAugment** | Online AutoAugment (ImageNet policy) \[R3.7\] | 20 orig/class |
-| 8 | **AugMix** | Online AugMix stochastic mixing \[R3.7\] | 20 orig/class |
-| 9 | **SD ×5 (Label)** | SD with simple label-name prompts \[ablation R6\] | 100/class |
+| 4 | **CDA ×9** | **Combined TDA+SD** (20 orig + 80 TDA + 80 SD) | **180/class** |
+| 5 | **MixUp** | Online convex combination of image pairs | 20 orig/class |
+| 6 | **CutMix** | Online rectangular region swapping | 20 orig/class |
+| 7 | **RandAugment ×5** | Pre-generated RandAugment policy | 100/class |
+| 8 | **AutoAugment** | Online AutoAugment (ImageNet policy) \[R3.7\] | 20 orig/class |
+| 9 | **AugMix** | Online AugMix stochastic mixing \[R3.7\] | 20 orig/class |
+| 10 | **SD ×5 (Label)** | SD with simple label-name prompts \[ablation R6\] | 100/class |
+
+> **CDA ×9** (Combined Data Augmentation) = TDA×5 + SD×5 merged into one dataset.
+> Tests whether combining two augmentation strategies is additive or synergistic.
+> Created automatically in Phase 1 of `07_master_run.py`; uses `per_type` k-fold
+> counting to ensure equal TDA/SD representation at every aug_limit.
+
+> **Training Configs** (supporting analysis, Phase 0-D):
+> `06_transfer_learning_comparison.py` compares 3 configurations on the baseline dataset
+> to justify why Config 1 (Transfer Learning + Partial Freezing) is the primary choice:
+> - Config 1: Transfer Learning + Partial Freezing ← **MAIN** (used for all experiments above)
+> - Config 2: Training from Scratch
+> - Config 3: Fine-tuning All Layers
 
 > **Note (GAN):** A separate DCGAN pipeline exists (`02_3_gen_gan.py`, `03_1_run_gan_experiment.py`) but is **not part of the main submitted results** — it is an optional exploratory comparison only.
 
@@ -97,6 +110,12 @@ python tomato_vs/07_master_run.py --no_kfold
 
 # Skip slower optional steps
 python tomato_vs/07_master_run.py --skip_image_quality --skip_diversity --skip_sensitivity
+
+# Skip CDA and training config comparison (run only 9-method main comparison)
+python tomato_vs/07_master_run.py --skip_cda --skip_training_configs
+
+# Run ONLY training config comparison (Phase 0-D standalone)
+python tomato_vs/06_transfer_learning_comparison.py
 ```
 
 ---
@@ -118,6 +137,8 @@ tomato_vs/
 ├── 02_6_gen_baselines.py          ← Generate RandAugment×5
 │
 ├── 03_run_experiments.py          ← Train EfficientNet-B0 (k-fold or 5-trial) [R9]
+│                                     Experiments: baseline, tda_x5, sd_x5, CDA×9,
+│                                     mixup, cutmix, randaugment, autoaugment, augmix
 ├── 03_1_run_gan_experiment.py     ← Train EfficientNet-B0 on GAN dataset
 ├── 03_3_analyze_results.py        ← Wilcoxon tests / Cohen's d / ranking table
 │
@@ -125,7 +146,9 @@ tomato_vs/
 ├── 04_1_visualize_with_gan.py     ← Visualization including GAN results
 │
 ├── 05_final_comparison.py         ← Baseline vs Combined (TDA+SD) [standalone]
-├── 06_transfer_learning_comparison.py ← Pretrained vs from-scratch [standalone]
+├── 06_transfer_learning_comparison.py  ← 3 Training Configs comparison [Phase 0-D]
+│                                          Config1=PartialFreezing, Config2=Scratch,
+│                                          Config3=FineTuneAll  (justifies Config 1)
 │
 └── 07_master_run.py               ← MASTER RUN (fully automated, no interaction)
 ```

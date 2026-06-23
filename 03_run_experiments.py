@@ -222,7 +222,7 @@ def get_baseline_samples():
     return paths, labels, class_names
 
 
-def get_fold_aug_samples(aug_dir, train_stems, class_names, aug_limit=4):
+def get_fold_aug_samples(aug_dir, train_stems, class_names, aug_limit=4, per_type=False):
     """
     Collect (path, label) from augmented dataset, keeping only images whose
     source original stem is in `train_stems` (prevents data leakage from
@@ -236,6 +236,13 @@ def get_fold_aug_samples(aug_dir, train_stems, class_names, aug_limit=4):
       randaugment:   <stem>_raN.jpg
 
     Order matters: check _sdlo before _sd to avoid _sd matching _sdlo filenames.
+
+    per_type : if True, count TDA variants (_aug*, _ra*) and SD variants
+               (_sd*, _sdlo*) INDEPENDENTLY — each type allowed up to
+               aug_limit per source stem.  Used for combined_tda_sd (cda_x9)
+               to ensure equal TDA/SD representation at every aug_limit.
+               Example: aug_limit=4 → 4 TDA + 4 SD = 8 aug per original (9× dataset).
+               If False (default), a single shared counter caps ALL augmented variants.
     """
     c2i     = {c: i for i, c in enumerate(class_names)}
     # Ordered from most-specific to least-specific (prevents _sd from eating _sdlo)
@@ -245,6 +252,8 @@ def get_fold_aug_samples(aug_dir, train_stems, class_names, aug_limit=4):
         re.compile(r'_sd\d+$'),
         re.compile(r'_ra\d+$'),
     ]
+    # Pattern strings that belong to the TDA/RandAugment family
+    TDA_PAT_STRS = {'_aug\\d+$', '_ra\\d+$'}
     samples = []
 
     for cls_dir in sorted(aug_dir.iterdir()):
@@ -254,7 +263,9 @@ def get_fold_aug_samples(aug_dir, train_stems, class_names, aug_limit=4):
         if label < 0:
             continue
 
-        aug_cnt = {}
+        aug_cnt     = {}   # source_stem → total count  (normal mode)
+        tda_aug_cnt = {}   # source_stem → TDA count    (per_type mode)
+        sd_aug_cnt  = {}   # source_stem → SD count     (per_type mode)
 
         for f in sorted(cls_dir.iterdir()):
             if not f.is_file() or f.suffix.lower() not in VALID_EXT:
@@ -263,22 +274,33 @@ def get_fold_aug_samples(aug_dir, train_stems, class_names, aug_limit=4):
             stem        = f.stem
             source_stem = stem
             is_aug      = False
+            matched_pat = None
 
             for pat in SUFFIX_PATTERNS:
                 m = pat.search(stem)
                 if m:
                     source_stem = stem[:m.start()]
                     is_aug      = True
+                    matched_pat = pat
                     break
 
             if source_stem not in train_stems:
                 continue
 
             if is_aug:
-                cnt = aug_cnt.get(source_stem, 0)
-                if cnt >= aug_limit:
-                    continue
-                aug_cnt[source_stem] = cnt + 1
+                if per_type and matched_pat is not None:
+                    # Count TDA and SD families separately
+                    is_tda_type = matched_pat.pattern in TDA_PAT_STRS
+                    cnt_dict    = tda_aug_cnt if is_tda_type else sd_aug_cnt
+                    cnt = cnt_dict.get(source_stem, 0)
+                    if cnt >= aug_limit:
+                        continue
+                    cnt_dict[source_stem] = cnt + 1
+                else:
+                    cnt = aug_cnt.get(source_stem, 0)
+                    if cnt >= aug_limit:
+                        continue
+                    aug_cnt[source_stem] = cnt + 1
 
             samples.append((str(f), label))
 
@@ -577,7 +599,7 @@ def run_fold_experiment(train_samples, val_samples, class_names,
 # ─────────────────────────── Main ────────────────────────────────────────────
 if __name__ == '__main__':
 
-    core_exps = ['baseline', 'tda_x5', 'sd_x5']
+    core_exps = ['baseline', 'tda_x5', 'sd_x5', 'cda_x9']
     ext_exps  = ['mixup', 'cutmix', 'randaugment', 'autoaugment', 'augmix'] if args.extra_baselines else []
     abl_exps  = []
     if args.ablation_prompt:
@@ -594,16 +616,17 @@ if __name__ == '__main__':
 
     RA_DIR = datasets_dir / 'randaugment_x5' / 'train'
     EXP_DIR = {
-        'baseline':        datasets_dir / 'baseline'         / 'train',
-        'tda_x5':          datasets_dir / 'tda_x5'           / 'train',
-        'sd_x5':           datasets_dir / 'sd_x5'            / 'train',
-        'sd_labelonly_x5': datasets_dir / 'sd_labelonly_x5'  / 'train',
-        'mixup':           datasets_dir / 'baseline'         / 'train',
-        'cutmix':          datasets_dir / 'baseline'         / 'train',
+        'baseline':        datasets_dir / 'baseline'          / 'train',
+        'tda_x5':          datasets_dir / 'tda_x5'            / 'train',
+        'sd_x5':           datasets_dir / 'sd_x5'             / 'train',
+        'cda_x9':          datasets_dir / 'combined_tda_sd'   / 'train',  # TDA×5 + SD×5 combined (9×)
+        'sd_labelonly_x5': datasets_dir / 'sd_labelonly_x5'   / 'train',
+        'mixup':           datasets_dir / 'baseline'          / 'train',
+        'cutmix':          datasets_dir / 'baseline'          / 'train',
         'randaugment':     RA_DIR if RA_DIR.exists()
-                           else datasets_dir / 'baseline'    / 'train',
-        'autoaugment':     datasets_dir / 'baseline'         / 'train',  # online transform
-        'augmix':          datasets_dir / 'baseline'         / 'train',  # online transform
+                           else datasets_dir / 'baseline'     / 'train',
+        'autoaugment':     datasets_dir / 'baseline'          / 'train',  # online transform
+        'augmix':          datasets_dir / 'baseline'          / 'train',  # online transform
     }
 
     print(f"\nExperiments   : {experiments}")
@@ -679,6 +702,12 @@ if __name__ == '__main__':
                 if exp in ('mixup', 'cutmix', 'autoaugment', 'augmix'):
                     # Online transforms: use the fold's baseline images directly
                     tr_samples = [(bl_paths[i], bl_labels[i]) for i in tr_idx]
+                elif exp == 'cda_x9':
+                    # Combined TDA+SD: count each augmentation type separately
+                    # so aug_limit=4 → 4 TDA + 4 SD = 8 aug per original (9× total)
+                    tr_samples = get_fold_aug_samples(
+                        d, train_stems, class_names,
+                        aug_limit=args.aug_limit, per_type=True)
                 else:
                     tr_samples = get_fold_aug_samples(
                         d, train_stems, class_names, aug_limit=args.aug_limit)

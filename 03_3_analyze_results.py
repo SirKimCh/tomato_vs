@@ -343,6 +343,7 @@ COLOR_MAP = {
     'baseline':        '#2ecc71',
     'tda_x5':          '#3498db',
     'sd_x5':           '#e74c3c',
+    'cda_x9':          '#8e44ad',   # Combined TDA+SD (9×) — purple
     'mixup':           '#f39c12',
     'cutmix':          '#9b59b6',
     'randaugment':     '#1abc9c',
@@ -354,6 +355,7 @@ LABEL_MAP = {
     'baseline':        'Baseline',
     'tda_x5':          'TDA×5',
     'sd_x5':           'SD×5 (LLM)',
+    'cda_x9':          'CDA×9 (TDA+SD)',
     'mixup':           'MixUp',
     'cutmix':          'CutMix',
     'randaugment':     'RandAugment',

@@ -99,6 +99,18 @@ Same SD pipeline as 3.3 but prompt = `"tomato leaf {class_name}, disease symptom
 No Gemini API required.
 Implemented in `02_2b_gen_sd_labelonly.py`.
 
+### 3.10 CDA ×9 (Combined Data Augmentation) [Re-added from original paper]
+**Combines TDA ×5 and SD ×5** into a single training dataset:
+- **Source**: `combined_tda_sd/train/` = merge of `tda_x5/train/` (originals + _augN) + `sd_x5/train/` (_sdN only)
+- **Size**: 20 originals + 80 TDA augmented + 80 SD augmented = **180 images/class = 9× dataset**
+- **Purpose**: Tests whether combining two augmentation strategies is additive or synergistic
+- **Creation**: Automated in `07_master_run.py` Phase 1 after each SD generation (step 1-B2)
+- **K-fold handling**: `get_fold_aug_samples(..., per_type=True)` counts TDA and SD variants
+  SEPARATELY — each type up to `aug_limit` per source stem, preventing one type from
+  crowding out the other in the sorted file list
+- **Sensitivity**: At aug_limit=4, CDA gets 4 TDA + 4 SD = 8 aug per original (9× total);
+  at aug_limit=1, CDA gets 1 TDA + 1 SD = 2 aug per original (3× total)
+
 ---
 
 ## 4. Model Architecture
@@ -126,6 +138,29 @@ Implemented in `02_2b_gen_sd_labelonly.py`.
 | Max epochs | 50 |
 | Early stopping | patience=10 on validation loss |
 | Gradient clipping | max_norm=1.0 |
+
+### 4.1 Training Configuration Comparison [Justification for Config 1]
+
+Three training configurations are compared in `06_transfer_learning_comparison.py`
+to empirically justify the choice of Config 1 as the primary strategy.
+
+| Config | Pretrained | Frozen Layers | Trainable | Script Output |
+|--------|-----------|--------------|-----------|---------------|
+| **Config 1** | ✓ ImageNet | All except last 3 blocks + classifier | ~2.2M / 5.3M | `Config1_PartialFreezing/` |
+| Config 2 | ✗ Random init | None | 5.3M / 5.3M | `Config2_FromScratch/` |
+| Config 3 | ✓ ImageNet | None | 5.3M / 5.3M | `Config3_FineTuneAll/` |
+
+**Rationale for Config 1** (Transfer Learning + Partial Freezing):
+- In few-shot regime (20 images/class), fine-tuning ALL layers risks catastrophic
+  forgetting and overfitting to the small training set
+- Freezing early feature layers preserves generic edge/texture features from ImageNet
+- Partial freezing is the standard approach for small-data fine-tuning
+  (Howard & Ruder 2018; Kornblith et al. 2019)
+- Config 2 (from scratch) typically underperforms with <100 images/class
+- Config 3 (fine-tune all) can overfit rapidly with 20 images/class and lr=1e-4
+
+**Execution**: Phase 0-D of `07_master_run.py` runs `06_transfer_learning_comparison.py`
+once before the SD grid search. Results in `Results/training_config_comparison/`.
 
 ---
 

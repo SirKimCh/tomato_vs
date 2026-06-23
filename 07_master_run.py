@@ -18,6 +18,17 @@ Addresses ALL Q1-reviewer requirements:
  R10. Per-class      : Early Blight vs Late Blight confusion rate per method.
                        per_class_metrics.csv + per_class_comparison.png auto-saved.
 
+Additional experiments (re-added from original paper):
+  CDA ×9     : Combined TDA+SD (combined_tda_sd = 20 orig + 80 TDA + 80 SD per class)
+               Automatically created after each SD generation; tested alongside
+               individual methods.  Answers: "does TDA+SD combination outperform either?"
+  3 Training : Config comparison (06_transfer_learning_comparison.py) run ONCE in
+  Configs      Phase 0-D:
+               Config 1 = Transfer Learning + Partial Freezing  [MAIN]
+               Config 2 = Training from Scratch
+               Config 3 = Fine-tuning All Layers
+               Justifies why Config 1 is used for all main experiments.
+
 No interactive input — all parameters via command-line arguments.
 
 Current settings (đúng cho bài revision):
@@ -44,6 +55,9 @@ Usage:
 
   # Skip optional slow steps
   python tomato_vs/07_master_run.py --skip_image_quality --skip_sensitivity
+
+  # Skip CDA and training config comparison (run only main 9-method comparison)
+  python tomato_vs/07_master_run.py --skip_cda --skip_training_configs
 """
 
 import sys
@@ -95,6 +109,10 @@ parser.add_argument('--skip_quantity_ablation', action='store_true',
                     help='Skip augmentation-quantity ablation')
 parser.add_argument('--skip_sensitivity',   action='store_true',
                     help='Skip sensitivity analysis (augmentation ratio: 2×/3×/4×, R3.8)')
+parser.add_argument('--skip_cda',           action='store_true',
+                    help='Skip CDA (combined_tda_sd = TDA×5 + SD×5) creation and experiment')
+parser.add_argument('--skip_training_configs', action='store_true',
+                    help='Skip 3-config training comparison (06_transfer_learning_comparison.py)')
 args = parser.parse_args()
 
 # ─────────────────────────── Paths ───────────────────────────────────────────
@@ -145,8 +163,8 @@ def run_step(label, cmd, cwd=None, stream=True):
 
 
 def cleanup_sd_only():
-    """Remove only the SD-generated datasets (keep baseline, tda_x5, randaugment_x5)."""
-    for name in ['sd_x5', 'sd_labelonly_x5']:
+    """Remove SD-generated datasets (keep baseline, tda_x5, randaugment_x5)."""
+    for name in ['sd_x5', 'sd_labelonly_x5', 'combined_tda_sd']:
         d = datasets_dir / name
         if d.exists():
             shutil.rmtree(d)
@@ -160,12 +178,71 @@ def backup_datasets(run_dir):
     """
     bk = run_dir / 'generated_images_backup'
     bk.mkdir(parents=True, exist_ok=True)
-    for name in ['sd_x5', 'sd_labelonly_x5']:
+    for name in ['sd_x5', 'sd_labelonly_x5', 'combined_tda_sd']:
         src = datasets_dir / name
         if src.exists():
             shutil.copytree(str(src), str(bk / name))
             print(f"  Backed up: {name}")
     print(f"  (tda_x5, randaugment_x5, baseline → see {_phase0_backup})")
+
+
+def create_combined_dataset():
+    """
+    Create combined_tda_sd = tda_x5 originals + TDA augmented + SD augmented.
+    Result: 20 orig + 80 TDA + 80 SD = 180 images/class = 9× (cda_x9 experiment).
+
+    Strategy:
+      1. Copy ALL files from tda_x5/train/  (originals + *_augN files)
+      2. Copy only *_sdN* files from sd_x5/train/  (skip originals, already copied)
+    """
+    combined_dir = datasets_dir / 'combined_tda_sd' / 'train'
+    tda_dir      = datasets_dir / 'tda_x5'          / 'train'
+    sd_dir       = datasets_dir / 'sd_x5'            / 'train'
+
+    if not tda_dir.exists():
+        print(f"  WARNING: tda_x5 not found.  Skipping CDA creation.")
+        return False
+    if not sd_dir.exists():
+        print(f"  WARNING: sd_x5 not found.  Skipping CDA creation.")
+        return False
+
+    if combined_dir.exists():
+        shutil.rmtree(combined_dir)
+    combined_dir.mkdir(parents=True, exist_ok=True)
+
+    # Step 1: Copy everything from tda_x5 (originals + TDA aug)
+    for cls_dir in sorted(tda_dir.iterdir()):
+        if not cls_dir.is_dir():
+            continue
+        out_cls = combined_dir / cls_dir.name
+        out_cls.mkdir(parents=True, exist_ok=True)
+        for f in cls_dir.iterdir():
+            if f.is_file():
+                shutil.copy2(str(f), str(out_cls / f.name))
+
+    # Step 2: Copy only _sd* files from sd_x5 (avoid duplicating originals)
+    sd_copied = 0
+    for cls_dir in sorted(sd_dir.iterdir()):
+        if not cls_dir.is_dir():
+            continue
+        out_cls = combined_dir / cls_dir.name
+        out_cls.mkdir(parents=True, exist_ok=True)
+        for f in cls_dir.iterdir():
+            if f.is_file() and ('_sd' in f.stem or '_sdlo' in f.stem):
+                shutil.copy2(str(f), str(out_cls / f.name))
+                sd_copied += 1
+
+    total = sum(
+        sum(1 for f in cls.iterdir() if f.is_file())
+        for cls in combined_dir.iterdir() if cls.is_dir()
+    )
+    print(f"  CDA created: combined_tda_sd/train  "
+          f"({total} images total, {sd_copied} SD images merged)")
+    for cls_dir in sorted(combined_dir.iterdir()):
+        if cls_dir.is_dir():
+            n = sum(1 for f in cls_dir.iterdir() if f.is_file())
+            print(f"    {cls_dir.name}: {n} images")
+    return True
 
 
 def write_config(run_dir, strength, guidance, extras=None):
@@ -190,6 +267,8 @@ print("TOMATO-VS  ·  MASTER RUN  (Reviewer-Revised)")
 print(f"  Mode        : {args.mode}  ({'all 9 combos' if args.mode=='full' else '1 combo'})")
 print(f"  Train count : {args.train_count}  |  Test count : {args.test_count}")
 print(f"  K-Fold      : {'RepeatedStratifiedKFold (5×3=15 folds)' if not args.no_kfold else '5 fixed trials  [matches submitted paper]'}")
+print(f"  CDA (×9)    : {'ENABLED — combined_tda_sd created each combo' if not args.skip_cda else 'SKIPPED (--skip_cda)'}")
+print(f"  3 Configs   : {'ENABLED — Phase 0-D training config comparison' if not args.skip_training_configs else 'SKIPPED (--skip_training_configs)'}")
 print(f"  Combos      : {combos}")
 print("="*70)
 
@@ -229,6 +308,15 @@ for src, dst in [(datasets_dir / 'tda_x5',          _tda_backup),
     if src.exists() and not dst.exists():
         shutil.copytree(str(src), str(dst))
         print(f"  Phase-0 backed up: {src.name}")
+
+# ── PHASE 0-D: Training Configuration Comparison (one-time, standalone) ──────
+#   Runs 3 configs × baseline dataset × 5 trials to justify Config 1 choice.
+#   Uses only baseline (no SD needed). Results → Results/training_config_comparison/
+if not args.skip_training_configs:
+    run_step("PHASE 0-D  Training Config Comparison (Config 1 vs 2 vs 3)",
+             [python_exe, SCRIPT('06_transfer_learning_comparison.py')])
+else:
+    print("\n[SKIP] Training config comparison")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PHASE 1 — SD Grid Search  (9 combinations)
@@ -271,6 +359,18 @@ for combo_idx, (strength, guidance) in enumerate(combos, 1):
              '--strength', str(strength),
              '--guidance', str(guidance)]
         )
+
+    # ── 1-B2: Create CDA (combined_tda_sd = tda_x5 + sd_x5 merged) ──────────
+    #   CDA ×9 = 20 orig + 80 TDA + 80 SD per class = 180 total/class
+    #   Requires tda_x5 (from Phase 0-B) and sd_x5 (just generated above).
+    #   Adds 'cda_x9' experiment to 03_run_experiments.py automatically.
+    if not args.skip_cda:
+        print("\n[CDA] Creating combined_tda_sd dataset (TDA×5 + SD×5 merged) …")
+        ok_cda = create_combined_dataset()
+        if not ok_cda:
+            print("WARNING: CDA creation failed.  cda_x9 will be skipped by 03_run_experiments.py.")
+    else:
+        print("\n[SKIP] CDA creation")
 
     # ── 1-C: Image quality metrics (FID, LPIPS, Label Noise) ─────────────────
     if not args.skip_image_quality:
@@ -408,6 +508,13 @@ if not args.skip_sensitivity:
     )
     if not ok:
         print(f"  Warning: SD generation failed; sd_x5 sensitivity runs may be empty.")
+
+    # ── 2-B2: Create CDA for sensitivity analysis ─────────────────────────────
+    if not args.skip_cda:
+        print("\n[CDA] Creating combined_tda_sd for sensitivity analysis …")
+        ok_cda = create_combined_dataset()
+        if not ok_cda:
+            print("WARNING: CDA creation failed.  cda_x9 will be skipped in sensitivity runs.")
 
     # ── 2-C / 2-D / 2-E: Run for each aug_limit value ────────────────────────
     for lim in SENSITIVITY_AUG_LIMITS:

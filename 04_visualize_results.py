@@ -27,7 +27,7 @@ df_metrics = pd.read_csv(metrics_file)
 df_curves = pd.read_csv(curves_file) if curves_file.exists() else None
 
 # Dynamically determine experiments present in the CSV
-ORDERED = ['baseline', 'tda_x5', 'sd_x5',
+ORDERED = ['baseline', 'tda_x5', 'sd_x5', 'cda_x9',
            'mixup', 'cutmix', 'randaugment',
            'autoaugment', 'augmix',
            'sd_labelonly_x5']
@@ -35,6 +35,7 @@ COLOR_MAP = {
     'baseline':        '#2ecc71',
     'tda_x5':          '#3498db',
     'sd_x5':           '#e74c3c',
+    'cda_x9':          '#8e44ad',   # Combined TDA+SD (9×) — purple to distinguish
     'mixup':           '#f39c12',
     'cutmix':          '#9b59b6',
     'randaugment':     '#1abc9c',
@@ -44,14 +45,15 @@ COLOR_MAP = {
 }
 LABEL_MAP = {
     'baseline':        'Baseline',
-    'tda_x5':          'TDA x5',
-    'sd_x5':           'SD x5 (LLM)',
+    'tda_x5':          'TDA ×5',
+    'sd_x5':           'SD ×5 (LLM)',
+    'cda_x9':          'CDA ×9 (TDA+SD)',
     'mixup':           'MixUp',
     'cutmix':          'CutMix',
     'randaugment':     'RandAugment',
     'autoaugment':     'AutoAugment',
     'augmix':          'AugMix',
-    'sd_labelonly_x5': 'SD x5 (Label)',
+    'sd_labelonly_x5': 'SD ×5 (Label)',
 }
 all_exps_in_csv = df_metrics['Exp'].unique().tolist()
 experiments = [e for e in ORDERED if e in all_exps_in_csv] + \
@@ -188,7 +190,12 @@ if cm_files:
     for idx in range(len(experiments), len(flat_axes)):
         flat_axes[idx].axis('off')
 
-    plt.suptitle('Aggregate Confusion Matrices (5 Trials)', fontsize=14, fontweight='bold')
+    # Dynamic fold/trial count from metrics CSV
+    _trial_data = df_metrics[~df_metrics['Trial'].isin(['AVG', 'STD'])]
+    _n_eval = (int(_trial_data[_trial_data['Exp'] == experiments[0]]['Trial'].count())
+               if experiments and not _trial_data.empty else 0)
+    _fold_lbl = f"({_n_eval} {'Folds' if _n_eval > 5 else 'Trials'})" if _n_eval > 0 else ''
+    plt.suptitle(f'Aggregate Confusion Matrices {_fold_lbl}', fontsize=14, fontweight='bold')
     plt.tight_layout()
     plt.savefig(input_dir / 'confusion_matrix_aggregated.png', dpi=200, bbox_inches='tight')
     plt.close()

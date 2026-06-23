@@ -119,7 +119,7 @@ def run_step(label: str, cmd: list, cwd=None, stream: bool = True) -> bool:
 
 def cleanup_sd_only():
     """Remove only SD-generated datasets; keep baseline/tda_x5/randaugment_x5."""
-    for name in ['sd_x5', 'sd_labelonly_x5']:
+    for name in ['sd_x5', 'sd_labelonly_x5', 'combined_tda_sd']:
         d = datasets_dir / name
         if d.exists():
             shutil.rmtree(d)
@@ -130,13 +130,72 @@ def backup_datasets(run_dir: Path):
     """Backup SD datasets into run_dir/generated_images_backup/."""
     bk = run_dir / 'generated_images_backup'
     bk.mkdir(parents=True, exist_ok=True)
-    for name in ['sd_x5', 'sd_labelonly_x5']:
+    for name in ['sd_x5', 'sd_labelonly_x5', 'combined_tda_sd']:
         src = datasets_dir / name
         dst = bk / name
         if src.exists() and not dst.exists():
             shutil.copytree(str(src), str(dst))
             print(f"  Backed up: {name}")
     print(f"  (tda_x5/randaugment_x5/baseline → {_phase0_backup})")
+
+
+def create_combined_dataset():
+    """
+    Create combined_tda_sd = tda_x5 originals + TDA augmented + SD augmented.
+    Result: 20 orig + 80 TDA + 80 SD = 180 images/class = 9× (cda_x9 experiment).
+
+    Strategy:
+      1. Copy ALL files from tda_x5/train/  (originals + *_augN files)
+      2. Copy only *_sdN* files from sd_x5/train/  (skip originals, already copied)
+    """
+    combined_dir = datasets_dir / 'combined_tda_sd' / 'train'
+    tda_dir      = datasets_dir / 'tda_x5'          / 'train'
+    sd_dir       = datasets_dir / 'sd_x5'            / 'train'
+
+    if not tda_dir.exists():
+        print(f"  WARNING: tda_x5 not found.  Skipping CDA creation.")
+        return False
+    if not sd_dir.exists():
+        print(f"  WARNING: sd_x5 not found.  Skipping CDA creation.")
+        return False
+
+    if combined_dir.exists():
+        shutil.rmtree(combined_dir)
+    combined_dir.mkdir(parents=True, exist_ok=True)
+
+    # Step 1: Copy everything from tda_x5 (originals + TDA aug)
+    for cls_dir in sorted(tda_dir.iterdir()):
+        if not cls_dir.is_dir():
+            continue
+        out_cls = combined_dir / cls_dir.name
+        out_cls.mkdir(parents=True, exist_ok=True)
+        for f in cls_dir.iterdir():
+            if f.is_file():
+                shutil.copy2(str(f), str(out_cls / f.name))
+
+    # Step 2: Copy only _sd* files from sd_x5 (avoid duplicating originals)
+    sd_copied = 0
+    for cls_dir in sorted(sd_dir.iterdir()):
+        if not cls_dir.is_dir():
+            continue
+        out_cls = combined_dir / cls_dir.name
+        out_cls.mkdir(parents=True, exist_ok=True)
+        for f in cls_dir.iterdir():
+            if f.is_file() and ('_sd' in f.stem or '_sdlo' in f.stem):
+                shutil.copy2(str(f), str(out_cls / f.name))
+                sd_copied += 1
+
+    total = sum(
+        sum(1 for f in cls.iterdir() if f.is_file())
+        for cls in combined_dir.iterdir() if cls.is_dir()
+    )
+    print(f"  CDA created: combined_tda_sd/train  "
+          f"({total} images total, {sd_copied} SD images merged)")
+    for cls_dir in sorted(combined_dir.iterdir()):
+        if cls_dir.is_dir():
+            n = sum(1 for f in cls_dir.iterdir() if f.is_file())
+            print(f"    {cls_dir.name}: {n} images")
+    return True
 
 
 def write_config(run_dir: Path, strength: float, guidance: float, extras=None):
@@ -335,6 +394,13 @@ else:
         else:
             print("\n[SKIP] Label-only SD generation (--skip_ablation_prompt)")
 
+        # ── 1-B2: Create CDA (combined_tda_sd = tda_x5 + sd_x5 merged) ──────
+        #   CDA ×9 = 20 orig + 80 TDA + 80 SD per class = 180 total/class
+        print("\n[CDA] Creating combined_tda_sd dataset (TDA×5 + SD×5 merged) …")
+        ok_cda = create_combined_dataset()
+        if not ok_cda:
+            print("WARNING: CDA creation failed.  cda_x9 will be skipped by 03_run_experiments.py.")
+
         # ── 1-C: Image quality metrics (FID / LPIPS / Label Noise) ───────────
         if not args.skip_image_quality:
             run_step(
@@ -524,6 +590,12 @@ else:
                 print(f"  WARNING: SD generation failed. sd_x5 sensitivity may be empty.")
         else:
             print("\n[HOTFIX] sd_x5 already present — skipping SD re-generation")
+
+        # ── Create CDA for sensitivity analysis ──────────────────────────────
+        print("\n[CDA] Creating combined_tda_sd for sensitivity analysis …")
+        ok_cda = create_combined_dataset()
+        if not ok_cda:
+            print("WARNING: CDA creation failed.  cda_x9 will be skipped in sensitivity runs.")
 
         # ── Run for each pending aug_limit ────────────────────────────────────
         for lim in pending_aug:
