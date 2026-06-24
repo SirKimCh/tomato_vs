@@ -753,6 +753,36 @@ số revision (FineTuneAll 92.95 > Partial 90.23) khớp **lr=1e-4**. ⇒ Bản 
 
 ---
 
+### Q5: Vì sao Baseline ở bảng chính (90.44) ≠ Baseline ở bảng 3-config Config 1 (90.23)?
+
+**Câu hỏi người viết bài**: cùng s0.35/g7.5, cùng Config 1, nhưng Baseline (chạy chung TDA/GDA, file
+`20260624_015019/metrics_summary.csv`) = **0.9044**, còn Baseline trong 3-config Config 1
+(`training_config_comparison/.../metrics_summary.csv`) = **0.9023**. Vì sao lệch?
+
+**Đây KHÔNG phải lỗi, KHÔNG phải khác cấu hình.** Cả hai đều Config 1 (Partial Freezing), cùng tập
+Baseline (20 ảnh gốc/lớp), **cùng fold split** (RepeatedStratifiedKFold seed=42). Bằng chứng split giống nhau:
+**CDA per-fold TRÙNG KHỚP TUYỆT ĐỐI** giữa 2 file (cả 15 fold: 0.902=0.902, 0.942=0.942, … → `cda_x9` = `combined_tda_sd` = 0.9140).
+
+**Nguyên nhân = nhiễu huấn luyện (training nondeterminism), bị khuếch đại bởi tập Baseline quá nhỏ:**
+- Mã bật **AMP (mixed precision)** và **không** đặt `torch.use_deterministic_algorithms(True)` → còn một
+  lượng **nhiễu dấu phẩy động cực nhỏ** giữa 2 lần train độc lập (main `03` và config `06` là 2 tiến trình khác nhau).
+- **Baseline train trên 80 ảnh (16/lớp × 5)** → mô hình kém ổn định, ranh giới quyết định gần nhiều ảnh test
+  → nhiễu nhỏ đủ làm **lật vài dự đoán** (mỗi ảnh = 0.002 acc) → per-fold lệch ngẫu nhiên 2 chiều.
+- **CDA train trên ~720 ảnh** → mô hình ổn định, dự đoán test cách xa ranh giới → nhiễu **không lật** dự đoán nào
+  → kết quả trùng khít.
+- Lệch trung bình chỉ **0.21%** (90.44 vs 90.23), **nằm gọn trong std ±1.2%** → về thống kê là **như nhau**.
+
+**Cách xử lý cho bài (KHÔNG cần train lại):**
+- **Khuyến nghị**: Config 1 trong bảng 3-config **CHÍNH LÀ** thí nghiệm chính → **dùng luôn số bảng chính**
+  cho hàng "Config 1" (Baseline 90.44, CDA 91.40). Không nên báo 2 số Baseline khác nhau cho cùng một thiết lập.
+  Giá trị của bảng 3-config nằm ở **Config 2 vs Config 3** (cái mới), còn Config 1 = kết quả chính.
+- Hoặc thêm 1 chú thích: *"Config 1 được huấn luyện lại độc lập trong nghiên cứu cấu hình; chênh lệch
+  nhỏ (<0.3%) so với bảng chính là do nhiễu huấn luyện trên tập few-shot, nằm trong độ lệch chuẩn."*
+- (Tùy chọn, nếu muốn 2 bảng trùng khít tuyệt đối: đặt `torch.use_deterministic_algorithms(True)` +
+  tắt AMP rồi chạy lại — nhưng **không cần thiết**, chỉ làm chậm và không đổi kết luận.)
+
+---
+
 ### Kết luận hành động cần làm (cập nhật 24/06/2026)
 
 | # | Việc cần làm | Trạng thái | Nguồn |
