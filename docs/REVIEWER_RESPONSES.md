@@ -274,9 +274,13 @@ analysis and strategy to reduce this confusion."
 
 ### Rationale
 
-The submitted paper used `lr = 1e-3` (AdamW). During revision, a scientific review
-of the fine-tuning literature identified that `lr = 1e-4` is more appropriate for this
-specific scenario:
+> ⚠️ **Lưu ý quan trọng (kiểm chứng 24/06/2026)**: bản **PDF nộp (trang 14) ghi `lr = η₀ = 10⁻³`
+> với "Adam"**, NHƯNG **toàn bộ code gốc `legacy/` (03, 06, 07) thực tế dùng `lr = 1e-4` với AdamW**.
+> Tức văn bản bài và code gốc **không khớp**. Bản revision dùng `lr = 1e-4` (khớp code legacy).
+> ⇒ **Cần sửa văn bản bài thành `lr = 1e-4, AdamW`** cho khớp thực nghiệm thực tế.
+
+The submitted paper's TEXT stated `lr = 1e-3` (Adam), but the actual code ran `lr = 1e-4` (AdamW).
+The revision standardises on `lr = 1e-4`, which is also the more appropriate value for this scenario:
 
 | Factor | Argument for 1e-4 |
 |--------|------------------|
@@ -288,10 +292,12 @@ specific scenario:
 
 ### Impact
 
-- All trained models in this revision use `lr = 1e-4`
-- Results will differ from the submitted paper (which used 1e-3)
-- The paper should state: *"Following standard fine-tuning practice for pre-trained CNNs on limited data (Howard & Ruder 2018), we revised the learning rate from 1e-3 to 1e-4."*
-- `LEARNING_RATE = 1e-4` in `03_run_experiments.py` (and all other training scripts)
+- All trained models in this revision use `lr = 1e-4` (same as the legacy CODE)
+- The submitted paper TEXT said 1e-3; correct it to **1e-4** to match the actual experiments
+- The paper should state: *"We use AdamW with a learning rate of 1e-4, following standard fine-tuning practice for pre-trained CNNs on limited data (Howard & Ruder 2018)."*
+- `LEARNING_RATE = 1e-4` in `03_run_experiments.py` (and all other training scripts, incl. `legacy/`)
+- ⚠️ At `lr = 1e-4`, the 3-config study now ranks **Fine-Tune All ≥ Partial Freezing** (opposite the
+  submitted text's claim). Adjust the "partial freezing is best" wording — see BAO_CAO §14 Q4.
 
 ---
 

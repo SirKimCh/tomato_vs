@@ -696,53 +696,75 @@ Phần duy nhất cần chạy lại vẫn là **3-config comparison** (15-fold 
 
 ---
 
-### Q4: Vì sao baseline ở bản nộp khác nhau? (90.48 vs 92.52) — augmentation comparison KHÔNG chạy dưới Config 1
+### Q4: Cấu hình 9-combo ở bản gốc vs bản sửa — KẾT LUẬN DỨT KHOÁT TỪ SỐ LIỆU (cập nhật 24/06)
 
-**Người viết bài đúng.** Đối chiếu Table 3 của bản nộp (PDF):
+> ⚠️ **Vì sao không tin code `legacy/`**: người viết bài xác nhận lúc nộp có thể **chỉnh tay**
+> (đóng băng/mở/bật-tắt pretrain) giữa các lần chạy, nên trạng thái freeze trong `legacy/03` hiện tại
+> **không đáng tin**. Bằng chứng đáng tin duy nhất = **số liệu Table 3 đã in trong PDF** (không sửa được).
+> Cách xác định config: **so baseline của phần augmentation với chính các config TRONG CÙNG mỗi bài**
+> (cùng lr, cùng CV) bằng **cả mean lẫn std**.
 
-| Phần (baseline Acc) | Bản nộp (lr=1e-3, 5 runs) | Bản revision (lr=1e-4) |
+**Bản nộp (Table 3 PDF):**
+| Hàng | Acc | std |
 |---|---|---|
-| Augmentation comparison (Baseline) | **90.48 ±1.42** | 90.41 (15-fold, = Config 1) |
-| Config 1 — Partial Freezing | **92.52 ±0.73** | 90.56 (stale 5-trial) / ~90.4 (15-fold) |
-| Config 2 — From Scratch | 45.16 ±23.53 | 47.72 |
-| Config 3 — Fine-Tune All | **90.64 ±1.42** | 92.52 (stale 5-trial) |
+| Augmentation Baseline | 90.48 | **1.42** |
+| Config 1 Partial Freezing | 92.52 | 0.73 |
+| Config 3 Fine-Tune All | 90.64 | **1.42** |
+→ aug ≡ **Config 3 Fine-Tune All** (mean 90.48≈90.64, **std 1.42=1.42**). **Bản nộp chạy 9-combo dưới Fine-Tune All.**
 
-**Phát hiện 1 — bản nộp chạy augmentation dưới Fine-Tune All (Config 3), không phải Config 1:**
-phần augmentation comparison baseline (**90.48 ±1.42**) trùng **cả mean lẫn std** với
-**Config 3 Fine-Tune All (90.64 ±1.42)** — std giống hệt `1.42`, khác hẳn Config 1 (`±0.73`).
-→ Bản nộp **không nhất quán**: phần so sánh augmentation dùng Fine-Tune All, còn phần kết luận lại
-khuyến nghị Partial Freezing. Đây chính là điều người viết bài nhận ra.
+**Bản revision (đã chạy 24/06):**
+| Hàng | Acc | std |
+|---|---|---|
+| Augmentation Baseline (`20260624_015019`) | 90.44 | **1.23** |
+| Config 1 Partial Freezing | 90.23 | **1.23** |
+| Config 3 Fine-Tune All | 92.95 | 0.95 |
+→ aug ≡ **Config 1 Partial Freezing** (mean 90.44≈90.23, **std 1.23=1.23**). **Revision chạy 9-combo dưới Partial Freezing.**
 
-**Phát hiện 2 — bản revision đã làm CHO NHẤT QUÁN:** mọi method trong `03_run_experiments.py`
-chạy dưới **Config 1 (Partial Freezing)** → baseline ≈ 90.4; và Config 1 trong `06` cũng ≈ 90.4
-(khớp nhau). Tức revision đã sửa sự không nhất quán của bản nộp.
+### ⇒ KẾT LUẬN: 9-combo bản nộp = **Fine-Tune All**; 9-combo revision = **Partial Freezing**. **KHÁC NHAU.**
+(PDF trang 14 xác nhận Config 3 = "all layers are subject to fine-tuning".)
 
-**Phát hiện 3 (QUAN TRỌNG) — đổi lr=1e-3 → 1e-4 đã ĐẢO thứ hạng cấu hình:**
-- Bản nộp (lr=1e-3): **Partial Freezing (92.52) > Fine-Tune All (90.64)** → Partial thắng.
-- Revision (lr=1e-4): **Fine-Tune All (92.52) > Partial Freezing (90.56)** → Fine-Tune All thắng.
-- Nhưng với **CDA** thì 2 cấu hình gần như NGANG nhau (bản nộp: Config1 CDA=93.32 ≈ Config3 CDA=93.20).
+> 🔁 **Đính chính 2 lần nhầm trước đó của bản phân tích**: lần 2-trước nói aug=Fine-Tune All (đúng, dựa std
+> nhưng chưa chắc); lần trước "sửa" thành Partial vì tin code `legacy/03` — **sai**, vì code đó đã bị chỉnh tay.
+> Kết luận đúng (số liệu, không phải code): **bản nộp = Fine-Tune All, revision = Partial Freezing**.
 
-**Hệ quả cho bài & lựa chọn cần quyết (tác giả quyết định):**
-- (A) **Giữ revision** (main = Config 1, lr=1e-4): nhất quán nội bộ. Nhưng phải báo cáo trung thực rằng
-  trên baseline, Fine-Tune All nhỉnh hơn Partial Freezing; lý do chọn Partial Freezing = **hiệu quả
-  tham số** (chỉ ~2.2M/5.3M train) và **với CDA thì gần như ngang**. ⇒ Chỉ cần chạy lại 3-config (như Q2).
-- (B) **Đổi main sang Config 3 (Fine-Tune All)** để khớp "chọn cấu hình tốt nhất ở lr=1e-4": phải
-  **train lại TOÀN BỘ** main comparison dưới Config 3 (nặng) và mâu thuẫn thông điệp "partial freezing" của bài.
-- (C) **Quay về lr=1e-3** (như bản nộp): Partial Freezing tốt nhất trở lại, khớp thông điệp gốc, nhưng
-  hủy "scientific correction" về lr và phải **train lại toàn bộ** dưới lr=1e-3.
+**Mâu thuẫn lr:** PDF (trang 14) ghi `lr=1e-3 (η₀=10⁻³), Adam`; code `legacy/` ghi `1e-4, AdamW`; revision dùng `1e-4`.
+Số liệu bản nộp (Partial 92.52 > FineTuneAll 90.64) khớp hành vi **lr=1e-3** (lr cao ổn định cho Partial, hại FineTuneAll);
+số revision (FineTuneAll 92.95 > Partial 90.23) khớp **lr=1e-4**. ⇒ Bản nộp gần như chắc chạy thực tế ở **1e-3**
+(đúng văn bản), revision ở **1e-4**. **Cần thống nhất 1 lr và ghi đúng trong bài.**
 
-→ **Khuyến nghị: (A)** — ít rủi ro nhất, nhất quán, và CDA (đóng góp chính của bài) vẫn mạnh ở mọi cấu hình.
+**CDA giúp được bao nhiêu theo từng config (revision, 15-fold) — điểm mấu chốt để giữ thông điệp bài:**
+| Config | Baseline → CDA | Δ |
+|---|---|---|
+| Config 1 Partial Freezing | 90.23 → **91.40** | **+1.17** |
+| Config 2 From Scratch | 50.19 → 72.13 | **+21.9** |
+| Config 3 Fine-Tune All | 92.95 → 93.05 | **+0.10** (bão hòa) |
+→ **CDA có giá trị NHẤT ở Partial Freezing & From Scratch; ở Fine-Tune All thì baseline đã cao sẵn nên CDA gần như không thêm.**
+
+**Có cần chạy lại không? — 3 hướng (tác giả quyết):**
+- **(KHUYẾN NGHỊ — KHÔNG cần train lại)**: giữ revision (mọi thứ dưới **Partial Freezing, lr=1e-4**, đã chạy xong).
+  Viết bài theo thông điệp: *"Partial Freezing là điểm cân bằng hiệu quả; CDA cho lợi ích lớn nhất ở chế độ này
+  (+1.17%) và from-scratch (+21.9%), trong khi full fine-tuning đã bão hòa (+0.10%)."* **KHÔNG khẳng định
+  "Partial Freezing có accuracy cao nhất"** (vì ở 1e-4 Fine-Tune All cao hơn). Báo cáo trung thực số Fine-Tune All.
+  Sửa văn bản bài: lr=1e-4; aug-comparison chạy dưới Partial Freezing (≠ bản nộp vốn là Fine-Tune All).
+- **(Giữ thông điệp "Partial tốt nhất" như bản nộp)**: dùng **lr=1e-3** (đúng văn bản bài) + Partial cho mọi thứ →
+  Partial thành tốt nhất trở lại. **Phải train lại TOÀN BỘ ở 1e-3.** (nặng)
+- **(Đổi headline sang Fine-Tune All)**: giữ 1e-4, chạy lại 9-combo dưới Fine-Tune All (config tốt nhất ở 1e-4) →
+  nhất quán "dùng config tốt nhất". **Phải train lại 9-combo.** Mâu thuẫn thông điệp transfer-learning của bài.
 
 ---
 
 ### Kết luận hành động cần làm (cập nhật 24/06/2026)
 
-| # | Việc cần làm | Trạng thái | Lệnh / nguồn |
-|---|-------------|-----------|--------------|
-| 1 | **CDA trong main comparison (10 method)** | ✅ **ĐÃ CÓ** (15-fold) | đọc `Results/20260623_162856_s0.35_g7.5/metrics_summary.csv` (`cda_x9` = 91.52±1.58%) |
-| 2 | **[CẦN CHẠY LẠI] 3-config comparison (15-fold + CDA)** | ⚠️ kết quả cũ là 5-trial, baseline-only | xóa `Results/training_config_comparison/`, rồi chạy theo Q2 — Cách 1 (standalone, ~30–60′) hoặc Cách 2 (master run) |
-| 3 | [Tùy chọn] Best combo nhất quán có image quality | ⏳ nếu muốn 1 batch SD duy nhất | `python tomato_vs/07_master_run.py --mode one --strength 0.35 --guidance 7.5 --skip_sensitivity` (~4–5h, gồm Phase 1-D) |
-| 4 | [Tùy chọn] Chạy toàn bộ lại | ⏳ | `python tomato_vs/07_master_run.py` (~24–36h) |
+| # | Việc cần làm | Trạng thái | Nguồn |
+|---|-------------|-----------|--------|
+| 1 | **Run nhất quán best combo (10 method + cda_x9 + image quality + diversity), 15-fold** | ✅ **ĐÃ CHẠY (24/06)** | **`Results/20260624_015019_s0.35_g7.5/`** ← dùng làm **bảng chính** (mọi method cùng 1 batch SD) |
+| 2 | **3-config comparison (15-fold + CDA)** | ✅ **ĐÃ CHẠY (24/06)** | `Results/training_config_comparison/all_configs_comparison.csv` (cột `Fold`, baseline + combined_tda_sd) |
+| 3 | 9-combo grid (cho bảng GDA 1–9) | ✅ đã có (lr=1e-4, 15-fold) | `Results/2026062*_s*_g*/` (Jun21) — cấu hình GIỐNG bản gốc (Partial Freezing) |
+| 4 | Sensitivity 20-x-x (R3.8) | ✅ đã có | `Results/2026062*_sensitivity_aL*/` |
+
+> **Bảng chính bài báo nên lấy từ `20260624_015019_s0.35_g7.5/`** (nhất quán 1 batch SD): baseline=90.44,
+> tda=90.68, sd=91.15, **cda=91.40**, mixup=89.21, cutmix=90.32, randaugment=91.76, autoaugment=91.17,
+> augmix=90.61, sd_labelonly=90.81. (Số §6/§13 ở trên là từ Jun21/Jun23 — nên cập nhật theo run này.)
 
 > **Tóm tắt phần CẦN CHẠY LẠI**: chỉ có **3-config comparison** là bắt buộc chạy lại
 > (để có 15-fold + CDA thay cho 5-trial + baseline-only). Mọi kết quả khác (9 combo SD,
