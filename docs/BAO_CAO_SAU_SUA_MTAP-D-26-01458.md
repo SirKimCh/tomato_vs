@@ -531,7 +531,7 @@ Multiplier | Train/class | SD Acc    | TDA Acc   | Baseline Acc
 | `08_master_run_hotfix.py` thiếu CDA (không tạo `combined_tda_sd`, cleanup không xóa) | `08_master_run_hotfix.py` | ✅ **ĐÃ FIX (23/06/2026)** — thêm `create_combined_dataset()`, cập nhật cleanup và backup |
 | `06_transfer_learning_comparison.py` không dùng AMP | `06_transfer_learning_comparison.py` | ✅ **ĐÃ FIX (23/06/2026)** — thêm AMP + NUM_WORKERS nhất quán với `03_run_experiments.py` |
 | **Config comparison chạy SAI THỨ TỰ: Phase 0-D gọi 06 TRƯỚC khi `combined_tda_sd` được tạo (Phase 1-B2) → 3-config chỉ có baseline, KHÔNG có CDA** | `07_master_run.py` | ✅ **ĐÃ FIX (24/06/2026)** — chuyển sang **Phase 1-D** (sau khi sinh SD/CDA), tự restore CDA của best combo từ backup, chạy 1 lần |
-| **Kết quả `training_config_comparison/` cũ dùng 5 fixed trials, không phải 15-fold** | kết quả trong `Results/` | ⚠️ **CẦN CHẠY LẠI** — code 06 hiện đã là 15-fold; xóa `Results/training_config_comparison/` cũ và chạy lại (xem §14 cuối) |
+| **Kết quả `training_config_comparison/` cũ dùng 5 fixed trials, không phải 15-fold** | kết quả trong `Results/` | ✅ **ĐÃ CHẠY LẠI (24/06/2026)** — `all_configs_comparison.csv` nay có cột `Fold` (1–15) + cả `baseline` & `combined_tda_sd` |
 | `08_master_run_hotfix.py` không chạy 3-config comparison | `08_master_run_hotfix.py` | ✅ **ĐÃ FIX (24/06/2026)** — thêm Phase 1-D (restore CDA best combo, 15-fold), tự bỏ qua nếu đã có CDA |
 
 ### Q1: Không thấy kết quả CDA (Combined Data Augmentation = TDA + SD kết hợp)
